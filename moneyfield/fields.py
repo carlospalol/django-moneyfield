@@ -1,6 +1,7 @@
 import logging
 from decimal import Decimal
 
+from django import forms
 from django.db import models
 from django.db.models import NOT_PROVIDED
 
@@ -8,6 +9,57 @@ from money import Money
 
 
 logger = logging.getLogger(__name__)
+
+# For a Translator model with a MoneyField "fee", this would require:
+# class TranslatorModelForm(forms.ModelForm):
+#     fee = MoneyFormField()
+#     
+#     class Meta:
+#         model = Translator
+#         exclude = ['fee_amount', 'fee_currency']
+#     
+#     def __init__(self, *args, **kwargs):
+#         initial = kwargs.setdefault('initial', {})
+#         if 'instance' in kwargs:
+#             initial.update({
+#                 'fee': kwargs['instance'].fee,
+#             })
+#         super().__init__(*args, **kwargs)
+#     
+#     def clean(self):
+#         fee = self.cleaned_data['fee']
+#         if fee:
+#             self.instance.fee_amount = fee.amount
+#             self.instance.fee_currency = fee.currency
+#         return super().clean()
+
+
+class MoneyWidget(forms.MultiWidget):
+    def __init__(self, attrs=None):
+        widgets = (
+            forms.TextInput(attrs=attrs),
+            forms.TextInput(attrs=attrs,),
+        )
+        super().__init__(widgets, attrs)
+    
+    def decompress(self, value):
+        if value:
+            return [value.amount, value.currency]
+        return [None, None]
+
+
+class MoneyFormField(forms.MultiValueField):
+    widget = MoneyWidget
+    
+    def __init__(self, *args, **kwargs):
+        fields = (
+            forms.DecimalField(),
+            forms.ChoiceField(),
+        )
+        super().__init__(fields, *args, **kwargs)
+    
+    def compress(self, data_list):
+        return Money(data_list[0], data_list[1])
 
 
 class AbstractMoneyProxy(object):
