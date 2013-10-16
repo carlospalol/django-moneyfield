@@ -7,7 +7,8 @@ from django.test import TestCase
 
 from money import Money
 
-from testapp.models import Book, Translator
+from testapp.models import Book, Translator, Transaction
+from testapp.forms import TransactionModelForm
 
 
 class TestAppConfiguration(TestCase):
@@ -160,6 +161,32 @@ class TestVariableCurrencyField(TestCase):
         translator = self.create_instance()
         results = Translator.objects.filter(fee_currency='USD')
         self.assertEqual(translator.fee, results[0].fee)
+
+
+class TestCurrencyChoices(TestCase):
+    def tearDown(self):
+        Transaction.objects.all().delete()
+    
+    def test_default_currency(self):
+        transaction = Transaction.objects.create(
+            value_amount=Decimal('1234567.89')
+        )
+        self.assertEqual(transaction.value, Money('1234567.89', 'USD'))
+    
+    def test_valid_currency(self):
+        form = TransactionModelForm(data={
+            'value_amount': Decimal('1234567.89'),
+            'value_currency': 'USD',
+        })
+        self.assertTrue(form.is_valid())
+    
+    def test_invalid_currency(self):
+        form = TransactionModelForm(data={
+            'value_amount': Decimal('1234567.89'),
+            'value_currency': 'XXX',
+        })
+        self.assertFalse(form.is_valid())
+
 
 
 

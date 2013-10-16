@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 
 from django.db import models
+from django.db.models import NOT_PROVIDED
 
 from money import Money
 
@@ -61,14 +62,24 @@ class CompositeMoneyProxy(AbstractMoneyProxy):
 class MoneyField(models.Field):
     description = "Money"
     
-    def __init__(self, verbose_name=None, name=None, max_digits=None,
-                 decimal_places=None, currency=None, **kwargs):
+    def __init__(self, verbose_name=None, name=None,  max_digits=None,
+                 decimal_places=None, currency=None, currency_choices=None,
+                 currency_default=NOT_PROVIDED, **kwargs):
         super().__init__(verbose_name, name, **kwargs)
         self.fixed_currency = currency
         
-        self.amount_field = models.DecimalField(decimal_places=decimal_places, max_digits=max_digits, **kwargs)
+        self.amount_field = models.DecimalField(
+            decimal_places=decimal_places,
+            max_digits=max_digits,
+            **kwargs
+        )
         if not self.fixed_currency:
-            self.currency_field = models.CharField(max_length=3, **kwargs)
+            self.currency_field = models.CharField(
+                max_length=3,
+                default=currency_default,
+                choices=currency_choices,
+                **kwargs
+            )
     
     def contribute_to_class(self, cls, name):
         self.name = name
