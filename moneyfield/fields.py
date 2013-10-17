@@ -71,6 +71,9 @@ class MoneyWidget(forms.MultiWidget):
         if value:
             return [value.amount, value.currency]
         return [None, None]
+    
+    def format_output(self, rendered_widgets):
+        return ' '.join(rendered_widgets)
 
 
 class MoneyFormField(forms.MultiValueField):
@@ -162,6 +165,9 @@ class MoneyField(models.Field):
     
     def contribute_to_class(self, cls, name):
         self.name = name
+        
+        
+        
         amount_attr = '{}_amount'.format(name)
         cls.add_to_class(amount_attr, self.amount_field)
         
