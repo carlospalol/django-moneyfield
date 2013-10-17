@@ -1,3 +1,3 @@
-from moneyfield.fields import MoneyField, MoneyFormField
+from moneyfield.fields import MoneyField, MoneyModelForm
 
 __version__ = 'experimental'
