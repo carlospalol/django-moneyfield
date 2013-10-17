@@ -17,16 +17,19 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
         new_class = super().__new__(cls, name, bases, attrs)
         if name == 'MoneyModelForm':
             return new_class
-        model_attrs = new_class._meta.model.__dict__
-        for name, field in model_attrs.items():
-            if isinstance(field, AbstractMoneyProxy):
-                new_class.base_fields.update({
-                    name: MoneyFormField()
-                })
-                if field._amount_attr:
-                    del new_class.base_fields[field._amount_attr]
-                if field._currency_attr:
-                    del new_class.base_fields[field._currency_attr]
+        
+        modelopts = new_class._meta.model._meta
+        if not hasattr(modelopts, 'moneyfields'):
+            raise Exception("The Model used with this ModelForm does not contain MoneyFields")
+        
+        # Add MoneyFormField and remove money-subfield form fields
+        for moneyfield in modelopts.moneyfields:
+            new_class.base_fields.update({
+                moneyfield.name: MoneyFormField()
+            })
+            for subfield_name in [moneyfield.amount_attr, moneyfield.currency_attr]:
+                if subfield_name and subfield_name in new_class.base_fields:
+                    del new_class.base_fields[subfield_name]
         
         return new_class
 
@@ -37,25 +40,17 @@ class MoneyModelForm(forms.ModelForm, metaclass=MoneyModelFormMetaclass):
         instance = kwargs.pop('instance', None)
         
         if instance:
-            model_attrs = self._meta.model.__dict__
-            for name, field in model_attrs.items():
-                if isinstance(field, AbstractMoneyProxy):
-                    initial.update({
-                        name: getattr(instance, name)
-                    })
+            for moneyfield in self._meta.model._meta.moneyfields:
+                initial.update({
+                    moneyfield.name: getattr(instance, moneyfield.name)
+                })
         super().__init__(*args, initial=initial, instance=instance, **kwargs)
     
     def clean(self):
-        logger.debug("MoneyModelForm.clean()")
-        logger.debug(self.cleaned_data)
-        model_attrs = self._meta.model.__dict__
-        for name, field in model_attrs.items():
-            if isinstance(field, AbstractMoneyProxy):
-                logger.debug(self.cleaned_data)
-                # FIXME: keyerror on validation error
-                value = self.cleaned_data[name]
-                if value:
-                    setattr(self.instance, name, value)
+        for moneyfield in self._meta.model._meta.moneyfields:
+            value = self.cleaned_data[moneyfield.name]
+            if value:
+                setattr(self.instance, moneyfield.name, value)
         return super().clean()
 
 
@@ -92,10 +87,8 @@ class MoneyFormField(forms.MultiValueField):
 
 class AbstractMoneyProxy(object):
     """Object descriptor for MoneyFields"""
-    def __init__(self, field, amount_attr, currency_attr):
+    def __init__(self, field):
         self.field = field
-        self._amount_attr = amount_attr
-        self._currency_attr = currency_attr
     
     def _get_values(self, obj):
         raise NotImplementedError()
@@ -122,23 +115,23 @@ class AbstractMoneyProxy(object):
 class SimpleMoneyProxy(AbstractMoneyProxy):
     """Descriptor for MoneyFields with fixed currency"""
     def _get_values(self, obj):
-        return (obj.__dict__[self._amount_attr], self.field.fixed_currency)
+        return (obj.__dict__[self.field.amount_attr], self.field.fixed_currency)
     
     def _set_values(self, obj, amount, currency=None):
         if not currency is None:
             if currency != self.field.fixed_currency:
                 raise TypeError('Field "{}" is {}-only.'.format(self.field.name, self.field.fixed_currency))
-        obj.__dict__[self._amount_attr] = amount
+        obj.__dict__[self.field.amount_attr] = amount
 
 
 class CompositeMoneyProxy(AbstractMoneyProxy):
     """Descriptor for MoneyFields with variable currency via additional column"""
     def _get_values(self, obj):
-        return (obj.__dict__[self._amount_attr], obj.__dict__[self._currency_attr])
+        return (obj.__dict__[self.field.amount_attr], obj.__dict__[self.field.currency_attr])
     
     def _set_values(self, obj, amount, currency):
-        obj.__dict__[self._amount_attr] = amount
-        obj.__dict__[self._currency_attr] = currency
+        obj.__dict__[self.field.amount_attr] = amount
+        obj.__dict__[self.field.currency_attr] = currency
 
 
 class MoneyField(models.Field):
@@ -165,18 +158,22 @@ class MoneyField(models.Field):
     
     def contribute_to_class(self, cls, name):
         self.name = name
+        self.model = cls
         
-        
-        
-        amount_attr = '{}_amount'.format(name)
-        cls.add_to_class(amount_attr, self.amount_field)
+        self.amount_attr = '{}_amount'.format(name)
+        cls.add_to_class(self.amount_attr, self.amount_field)
         
         if not self.fixed_currency:
-            currency_attr = '{}_currency'.format(name)
-            cls.add_to_class(currency_attr, self.currency_field)
-            setattr(cls, name, CompositeMoneyProxy(self, amount_attr, currency_attr))
+            self.currency_attr = '{}_currency'.format(name)
+            cls.add_to_class(self.currency_attr, self.currency_field)
+            setattr(cls, name, CompositeMoneyProxy(self))
         else:
-            setattr(cls, name, SimpleMoneyProxy(self, amount_attr, None))
+            self.currency_attr = None
+            setattr(cls, name, SimpleMoneyProxy(self))
+        
+        if not hasattr(cls._meta, 'moneyfields'):
+            cls._meta.moneyfields = []
+        cls._meta.moneyfields.append(self)
 
 
 
