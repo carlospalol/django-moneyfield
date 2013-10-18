@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django import forms
 from django.forms.models import ModelFormMetaclass
+from django.utils.datastructures import SortedDict
 from django.db import models
 from django.db.models import NOT_PROVIDED
 
@@ -22,14 +23,20 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
         if not hasattr(modelopts, 'moneyfields'):
             raise Exception("The Model used with this ModelForm does not contain MoneyFields")
         
-        # Add MoneyFormField and remove money-subfield form fields
-        for moneyfield in modelopts.moneyfields:
-            new_class.base_fields.update({
-                moneyfield.name: MoneyFormField()
-            })
-            for subfield_name in [moneyfield.amount_attr, moneyfield.currency_attr]:
-                if subfield_name and subfield_name in new_class.base_fields:
-                    del new_class.base_fields[subfield_name]
+        # Rebuild the dict of form fields by replacing fields derived from
+        # money subfields with a specialised money multivalue form field, while
+        # preserving the original ordering.
+        fields = SortedDict()
+        for fieldname, field in new_class.base_fields.items():
+            for moneyfield in modelopts.moneyfields:
+                if fieldname == moneyfield.amount_attr:
+                    fields[moneyfield.name] = MoneyFormField()
+                    break
+                if fieldname == moneyfield.currency_attr:
+                    break
+            else:
+                fields[fieldname] = field
+        new_class.base_fields = fields
         
         return new_class
 
