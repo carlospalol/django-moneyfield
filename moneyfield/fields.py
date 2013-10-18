@@ -1,6 +1,9 @@
 import logging
 from decimal import Decimal
 
+from django import forms
+from django.forms.models import ModelFormMetaclass
+from django.utils.datastructures import SortedDict
 from django.db import models
 from django.db.models import NOT_PROVIDED
 
@@ -8,6 +11,85 @@ from money import Money
 
 
 logger = logging.getLogger(__name__)
+
+
+class MoneyModelFormMetaclass(ModelFormMetaclass):
+    def __new__(cls, name, bases, attrs):
+        new_class = super().__new__(cls, name, bases, attrs)
+        if name == 'MoneyModelForm':
+            return new_class
+        
+        modelopts = new_class._meta.model._meta
+        if not hasattr(modelopts, 'moneyfields'):
+            raise Exception("The Model used with this ModelForm does not contain MoneyFields")
+        
+        # Rebuild the dict of form fields by replacing fields derived from
+        # money subfields with a specialised money multivalue form field, while
+        # preserving the original ordering.
+        fields = SortedDict()
+        for fieldname, field in new_class.base_fields.items():
+            for moneyfield in modelopts.moneyfields:
+                if fieldname == moneyfield.amount_attr:
+                    fields[moneyfield.name] = MoneyFormField()
+                    break
+                if fieldname == moneyfield.currency_attr:
+                    break
+            else:
+                fields[fieldname] = field
+        new_class.base_fields = fields
+        
+        return new_class
+
+
+class MoneyModelForm(forms.ModelForm, metaclass=MoneyModelFormMetaclass):
+    def __init__(self, *args, **kwargs):
+        initial = kwargs.pop('initial', {})
+        instance = kwargs.pop('instance', None)
+        
+        if instance:
+            for moneyfield in self._meta.model._meta.moneyfields:
+                initial.update({
+                    moneyfield.name: getattr(instance, moneyfield.name)
+                })
+        super().__init__(*args, initial=initial, instance=instance, **kwargs)
+    
+    def clean(self):
+        for moneyfield in self._meta.model._meta.moneyfields:
+            value = self.cleaned_data[moneyfield.name]
+            if value:
+                setattr(self.instance, moneyfield.name, value)
+        return super().clean()
+
+
+class MoneyWidget(forms.MultiWidget):
+    def __init__(self, attrs=None):
+        widgets = (
+            forms.TextInput(attrs=attrs),
+            forms.TextInput(attrs=attrs,),
+        )
+        super().__init__(widgets, attrs)
+    
+    def decompress(self, value):
+        if value:
+            return [value.amount, value.currency]
+        return [None, None]
+    
+    def format_output(self, rendered_widgets):
+        return ' '.join(rendered_widgets)
+
+
+class MoneyFormField(forms.MultiValueField):
+    widget = MoneyWidget
+    
+    def __init__(self, *args, **kwargs):
+        fields = (
+            forms.DecimalField(),
+            forms.CharField(),
+        )
+        super().__init__(fields, *args, **kwargs)
+    
+    def compress(self, data_list):
+        return Money(data_list[0], data_list[1])
 
 
 class AbstractMoneyProxy(object):
@@ -83,6 +165,8 @@ class MoneyField(models.Field):
     
     def contribute_to_class(self, cls, name):
         self.name = name
+        self.model = cls
+        
         self.amount_attr = '{}_amount'.format(name)
         cls.add_to_class(self.amount_attr, self.amount_field)
         
@@ -91,7 +175,12 @@ class MoneyField(models.Field):
             cls.add_to_class(self.currency_attr, self.currency_field)
             setattr(cls, name, CompositeMoneyProxy(self))
         else:
+            self.currency_attr = None
             setattr(cls, name, SimpleMoneyProxy(self))
+        
+        if not hasattr(cls._meta, 'moneyfields'):
+            cls._meta.moneyfields = []
+        cls._meta.moneyfields.append(self)
 
 
 
