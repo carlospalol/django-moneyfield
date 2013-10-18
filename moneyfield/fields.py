@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 
 from django import forms
+from django.core.exceptions import FieldError
 from django.forms.models import ModelFormMetaclass
 from django.utils.datastructures import SortedDict
 from django.db import models
@@ -149,6 +150,16 @@ class MoneyField(models.Field):
                  currency_default=NOT_PROVIDED, **kwargs):
         super().__init__(verbose_name, name, **kwargs)
         self.fixed_currency = currency
+        
+        # DecimalField pre-validation
+        if decimal_places is None or decimal_places < 0:
+            raise FieldError('"{}": MoneyFields require a non-negative integer argument "decimal_places".'.format(self.name))
+        if max_digits is None or max_digits <= 0:
+            raise FieldError('"{}": MoneyFields require a positive integer argument "max_digits".'.format(self.name))
+        
+        # Currency must be either fixed or variable
+        if currency and (currency_choices or not currency_default is NOT_PROVIDED):
+            raise FieldError('MoneyField "{}" has fixed currency "{}". Do not use "currency_choices" or "currency_default" at the same time.'.format(self.name, currency))
         
         self.amount_field = models.DecimalField(
             decimal_places=decimal_places,

@@ -7,6 +7,8 @@ from django.test import TestCase
 
 from money import Money
 
+from moneyfield import MoneyField
+
 from testapp.models import Book, Translator, Transaction
 from testapp.forms import TransactionModelForm
 
@@ -19,6 +21,40 @@ class TestAppConfiguration(TestCase):
             test_settings.MONEY_CURRENCY_CHOICES, 
             conf.CURRENCY_CHOICES
         )
+
+
+class TestFieldValidation(TestCase):
+    def test_missing_decimal_places(self):
+        with self.assertRaises(FieldError) as cm:
+            testfield = MoneyField(name='testfield', max_digits=8)
+        self.assertIn('decimal_places', cm.exception.args[0])
+    
+    def test_missing_max_digits(self):
+        with self.assertRaises(FieldError) as cm:
+            testfield = MoneyField(name='testfield', decimal_places=2)
+        self.assertIn('max_digits', cm.exception.args[0])
+    
+    def test_invalid_option_currency_default(self):
+        with self.assertRaises(FieldError) as cm:
+            testfield = MoneyField(
+                name='testfield',
+                decimal_places=2,
+                max_digits=8,
+                currency='USD',
+                currency_default='USD',
+            )
+        self.assertIn('has fixed currency', cm.exception.args[0])
+    
+    def test_invalid_option_currency_choices(self):
+        with self.assertRaises(FieldError) as cm:
+            testfield = MoneyField(
+                name='testfield',
+                decimal_places=2,
+                max_digits=8,
+                currency='USD',
+                currency_choices=(('USD', 'USD'),),
+            )
+        self.assertIn('has fixed currency', cm.exception.args[0])
 
 
 class TestFixedCurrencyField(TestCase):
