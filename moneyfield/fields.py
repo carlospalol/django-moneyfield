@@ -1,10 +1,12 @@
 import logging
+import re
 from decimal import Decimal
 
 from django import forms
-from django.core.exceptions import FieldError
+from django.core.exceptions import FieldError, ValidationError
 from django.forms.models import ModelFormMetaclass
 from django.utils.datastructures import SortedDict
+from django.utils.encoding import force_text
 from django.utils.html import format_html
 from django.db import models
 from django.db.models import NOT_PROVIDED
@@ -13,6 +15,12 @@ from money import Money
 
 
 logger = logging.getLogger(__name__)
+
+
+REGEX_CURRENCY_CODE = re.compile("[A-Z]{3}")
+def currency_code_validator(value):
+    if not REGEX_CURRENCY_CODE.match(force_text(value)):
+        raise ValidationError('Invalid currency code.')
 
 
 class MoneyModelFormMetaclass(ModelFormMetaclass):
@@ -26,8 +34,8 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
             raise Exception("The Model used with this ModelForm does not contain MoneyFields")
         
         # Rebuild the dict of form fields by replacing fields derived from
-        # money subfields with a specialised money multivalue form field, while
-        # preserving the original ordering.
+        # money subfields with a specialised money multivalue form field,
+        # while preserving the original ordering.
         fields = SortedDict()
         for fieldname, field in new_class.base_fields.items():
             for moneyfield in modelopts.moneyfields:
@@ -38,12 +46,24 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
                     break
             else:
                 fields[fieldname] = field
+        
         new_class.base_fields = fields
         
         return new_class
 
 
 class MoneyModelForm(forms.ModelForm, metaclass=MoneyModelFormMetaclass):
+    def __init__(self, *args, initial={}, instance=None, **kwargs):
+        if instance:
+            # Populate the multivalue form field using the initial dict,
+            # as model_to_dict() only sees the model's _meta.fields
+            opts = instance._meta
+            for moneyfield in opts.moneyfields:
+                initial.update({
+                    moneyfield.name: getattr(instance, moneyfield.name)}
+                )
+        super().__init__(*args, initial=initial, instance=instance, **kwargs)
+    
     def clean(self):
         cleaned_data = super().clean()
         # Finish the work of forms.models.construct_instance() as it can't
@@ -197,12 +217,18 @@ class MoneyField(models.Field):
     def formfield(self, **kwargs):
         formfield_amount = self.amount_field.formfield()
         if not self.fixed_currency:
-            formfield_currency = self.currency_field.formfield()
+            formfield_currency = self.currency_field.formfield(
+                validators=[currency_code_validator]
+            )
         else:
             formfield_currency = FixedCurrencyField()
         
         widget_amount = formfield_amount.widget
         widget_currency = formfield_currency.widget
+        
+        # Adjust currency input size
+        if type(widget_currency) is forms.TextInput:
+            widget_currency.attrs.update({'size': 3})
         
         config = {
             'fields': (formfield_amount, formfield_currency),
