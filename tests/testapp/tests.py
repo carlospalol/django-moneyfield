@@ -229,7 +229,6 @@ class TestCurrencyChoices(TestCase):
 
 
 class TestMoneyModelFormBasics(TestCase):
-    
     def test_field_natural_order(self):
         form = modelform_factory(SomeMoney, form=MoneyModelForm)()
         self.assertEqual(list(form.fields.keys()), ['field1', 'field2', 'field3'])
@@ -244,41 +243,69 @@ class TestMoneyModelFormBasics(TestCase):
         self.assertNotIn('value_currency', names)
 
 
-class TestMultipleCurrencyMoneyModelForm(TestCase):
+class TestFreeCurrencyMoneyModelForm(TestCase):
     def setUp(self):
-        self.TranslatorForm = modelform_factory(Translator, form=MoneyModelForm)
+        self.Form = modelform_factory(Transaction, form=MoneyModelForm)
+    
+    def test_initial(self):
+        form = self.Form(initial={
+            'value': Money('1000.00', 'CHF'),
+        })
+        html = form.as_p()
+        self.assertIn('value="1000.00"', html)
+        self.assertIn('value="CHF"', html)
+    
+    def test_create_object(self):
+        form = self.Form({
+            'value_0': Decimal('123.99'),
+            'value_1': 'GBP',
+        })
+        self.assertTrue(form.is_valid())
+        obj = form.save()
+        self.assertEqual(obj.value, Money('123.99', 'GBP'))
+    
+    def test_currency_code_validation(self):
+        form = self.Form({
+            'value_0': Decimal('9.99'),
+            'value_1': 'US',
+        })
+        print(form.is_valid())
+        print(form.errors.__dict__)
+        print(type(form.errors))
+
+
+class TestCurrencyChoicesMoneyModelForm(TestCase):
+    def setUp(self):
+        self.Form = modelform_factory(Translator, form=MoneyModelForm)
+    
+    def test_initial(self):
+        form = self.Form(initial={
+            'fee': Money('1.00', 'EUR'),
+        })
+        html = form.as_p()
+        self.assertIn('value="1.00"', html)
+        self.assertIn('value="EUR" selected="selected"', html)
+    
+    def test_create_object(self):
+        form = self.Form({
+            'fee_0': Decimal('33.44'),
+            'fee_1': 'USD',
+        })
+        self.assertTrue(form.is_valid())
+        obj = form.save()
+        self.assertEqual(obj.fee, Money('33.44', 'USD'))
     
     def test_currency_initial_from_default(self):
-        form = self.TranslatorForm()
+        form = self.Form()
         self.assertEqual(Translator.CURRENCY_DEFAULT, 'USD')
         self.assertEqual(form.fields['fee'].fields[1].initial, 'USD')
         self.assertEqual(form['fee'].field.initial, [None, 'USD'])
         self.assertEqual(form.instance.fee_currency, 'USD')
     
-    def test_initial(self):
-        form = self.TranslatorForm(initial={
-            'name': 'Neo',
-            'fee': Money('1.00', 'EUR'),
-        })
-        html = form.as_p()
-        self.assertIn('value="Neo"', html)
-        self.assertIn('value="1.00"', html)
-        self.assertIn('value="EUR" selected="selected"', html)
-    
     def test_currency_widget_choices(self):
-        form = self.TranslatorForm()
+        form = self.Form()
         self.assertEqual(form.fields['fee'].fields[1].choices,
                          [('EUR', 'EUR'), ('USD', 'USD'), ('CNY', 'CNY')])
-    
-    def test_create_object(self):
-        form = self.TranslatorForm({
-            'name': 'Mike',
-            'fee_0': Decimal('33.44'),
-            'fee_1': 'USD',
-        })
-        self.assertTrue(form.is_valid())
-        translator = form.save()
-        self.assertEqual(translator.fee, Money('33.44', 'USD'))
 
 # class TestFixedCurrencyModelForm(TestCase):
 #     def setUp(self):
