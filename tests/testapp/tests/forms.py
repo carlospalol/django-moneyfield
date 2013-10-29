@@ -30,20 +30,20 @@ class MoneyModelFormMixin(object):
     
     def test_data_decompressed(self):
         form = self.Form(data={
-            'price_0': Decimal('1234.99'),
+            'price_0': Decimal('1234.00'),
             'price_1': 'EUR',
         })
         self.assertTrue(form.is_valid())
         obj = form.save()
-        self.assertEqual(obj.price, Money('1234.99', 'EUR'))
+        self.assertEqual(obj.price, Money('1234.00', 'EUR'))
     
     def test_data_compressed(self):
         form = self.Form(data={
-            'price': Money('1234.99', 'EUR')
+            'price': Money('1234.00', 'EUR')
         })
         self.assertTrue(form.is_valid())
         obj = form.save()
-        self.assertEqual(obj.price, Money('1234.99', 'EUR'))
+        self.assertEqual(obj.price, Money('1234.00', 'EUR'))
     
     def test_initial(self):
         raise NotImplementedError()
@@ -55,11 +55,18 @@ class TestFixedCurrencyModelForm(MoneyModelFormMixin, TestCase):
     
     def test_initial(self):
         form = self.Form(initial={
-            'price': Money('1234.99', 'EUR'),
+            'price': Money('1234.00', 'EUR'),
         })
         html = form.as_p()
-        self.assertIn('value="1234.99"', html)
+        self.assertIn('value="1234.00"', html)
         self.assertNotIn('value="EUR"', html)
+    
+    def test_invalid_initial(self):
+        form = self.Form(initial={
+            'price': Money('1234.00', 'USD'),
+        })
+        with self.assertRaises(Exception):
+            html = form.as_p()
 
 
 class TestFreeCurrencyMoneyModelForm(MoneyModelFormMixin, TestCase):
@@ -68,10 +75,10 @@ class TestFreeCurrencyMoneyModelForm(MoneyModelFormMixin, TestCase):
     
     def test_initial(self):
         form = self.Form(initial={
-            'price': Money('1234.99', 'USD'),
+            'price': Money('1234.00', 'USD'),
         })
         html = form.as_p()
-        self.assertIn('value="1234.99"', html)
+        self.assertIn('value="1234.00"', html)
         self.assertIn('value="USD"', html)
 
 
@@ -81,18 +88,18 @@ class TestChoicesCurrencyMoneyModelForm(MoneyModelFormMixin, TestCase):
     
     def test_initial(self):
         form = self.Form(initial={
-            'price': Money('1234.99', 'USD'),
+            'price': Money('1234.00', 'USD'),
         })
         html = form.as_p()
-        self.assertIn('value="1234.99"', html)
+        self.assertIn('value="1234.00"', html)
         self.assertIn('value="USD" selected="selected"', html)
     
     def test_currency_initial_different_than_default(self):
         form = self.Form(initial={
-            'price': Money('1234.99', 'EUR'),
+            'price': Money('1234.00', 'EUR'),
         })
         html = form.as_p()
-        self.assertIn('value="1234.99"', html)
+        self.assertIn('value="1234.00"', html)
         self.assertIn('value="EUR" selected="selected"', html)
     
     def test_currency_initial_from_default(self):

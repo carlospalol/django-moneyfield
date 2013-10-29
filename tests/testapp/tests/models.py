@@ -134,7 +134,7 @@ class TestVariableCurrencyField(TestCase):
     
     def create_instance(self):
         return FreeCurrencyModel.objects.create(
-            price_amount=Decimal('12345.67'), 
+            price_amount=Decimal('1234.00'), 
             price_currency='USD'
         )
     
@@ -152,20 +152,20 @@ class TestVariableCurrencyField(TestCase):
     
     def test_manager_create_with_money(self):
         with self.assertRaises(TypeError):
-            obj = FreeCurrencyModel.objects.create(price=Money('12345.67', 'USD'))
+            obj = FreeCurrencyModel.objects.create(price=Money('1234.00', 'USD'))
     
     def test_manager_create_with_prices(self):
         obj = self.create_instance()
-        self.assertEqual(obj.price_amount, Decimal('12345.67'))
+        self.assertEqual(obj.price_amount, Decimal('1234.00'))
         self.assertEqual(obj.price_currency, 'USD')
     
     def test_instance_descriptor_get(self):
         obj = self.create_instance()
-        self.assertEqual(obj.price, Money('12345.67', 'USD'))
+        self.assertEqual(obj.price, Money('1234.00', 'USD'))
     
     def test_instance_descriptor_set(self):
         obj = self.create_instance()
-        self.assertEqual(obj.price, Money('12345.67', 'USD'))
+        self.assertEqual(obj.price, Money('1234.00', 'USD'))
         obj.price = Money('25.00', 'USD')
         self.assertEqual(obj.price, Money('25.00', 'USD'))
         obj.save()
@@ -180,16 +180,16 @@ class TestVariableCurrencyField(TestCase):
     def test_instance_retrieval(self):
         obj = self.create_instance()
         obj_retrieved = FreeCurrencyModel.objects.all()[0]
-        self.assertEqual(obj_retrieved.price, Money('12345.67', 'USD'))
+        self.assertEqual(obj_retrieved.price, Money('1234.00', 'USD'))
     
     def test_query_money(self):
         obj = self.create_instance()
         with self.assertRaises(FieldError):
-            results = FreeCurrencyModel.objects.filter(price=Money('12345.67', 'USD'))
+            results = FreeCurrencyModel.objects.filter(price=Money('1234.00', 'USD'))
     
     def test_query_amount(self):
         obj = self.create_instance()
-        results = FreeCurrencyModel.objects.filter(price_amount=Decimal('12345.67'))
+        results = FreeCurrencyModel.objects.filter(price_amount=Decimal('1234.00'))
         self.assertEqual(obj.price, results[0].price)
     
     def test_query_currency(self):
@@ -204,20 +204,20 @@ class TestCurrencyChoices(TestCase):
     
     def test_default_currency(self):
         obj = ChoicesCurrencyModel.objects.create(
-            price_amount=Decimal('45.67')
+            price_amount=Decimal('1234.00')
         )
-        self.assertEqual(obj.price, Money('45.67', 'USD'))
+        self.assertEqual(obj.price, Money('1234.00', 'USD'))
     
     def test_valid_currency(self):
         obj = ChoicesCurrencyModel.objects.create(
-            price_amount=Decimal('45.67'),
+            price_amount=Decimal('1234.00'),
             price_currency='EUR',
         )
         obj.full_clean()
     
     def test_invalid_currency(self):
         obj = ChoicesCurrencyModel.objects.create(
-            price_amount=Decimal('45.67'),
+            price_amount=Decimal('1234.00'),
             price_currency='XXX',
         )
         with self.assertRaises(ValidationError):

@@ -115,7 +115,7 @@ class FixedCurrencyWidget(forms.Widget):
     
     def render(self, name, value, attrs=None):
         if value and not value is self.currency:
-            raise Exception('FixedCurrencyWidget with currency "{}" cannot render value "{}".'.format(self.currency, value))
+            raise Exception('FixedCurrencyWidget with currency "{}" cannot be rendered with currency "{}".'.format(self.currency, value))
         return '<span style="vertical-align: middle;">{}</span>'.format(self.currency)
     
     def value_from_datadict(self, data, files, name):
