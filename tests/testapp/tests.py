@@ -1,24 +1,61 @@
 from decimal import Decimal
 
-from django.core.exceptions import FieldError
 from django.db import connection, transaction
 from django.db.utils import DatabaseError
+from django.core.exceptions import FieldError, ValidationError
+from django.forms.models import modelform_factory
+from django.conf import settings
 from django.test import TestCase
 
 from money import Money
 
-from testapp.models import Book, Translator, Transaction
-from testapp.forms import TransactionModelForm
+from moneyfield import MoneyField, MoneyModelForm
+from moneyfield.fields import MoneyFormField
+from moneyfield import conf
+
+from testapp.models import Book, Translator, Transaction, SomeMoney
 
 
 class TestAppConfiguration(TestCase):
     def test_currency_choices(self):
-        import test_settings
-        from moneyfield import conf
         self.assertEqual(
-            test_settings.MONEY_CURRENCY_CHOICES, 
+            settings.MONEY_CURRENCY_CHOICES, 
             conf.CURRENCY_CHOICES
         )
+
+
+class TestFieldValidation(TestCase):
+    def test_missing_decimal_places(self):
+        with self.assertRaises(FieldError) as cm:
+            testfield = MoneyField(name='testfield', max_digits=8)
+        self.assertIn('decimal_places', cm.exception.args[0])
+    
+    def test_missing_max_digits(self):
+        with self.assertRaises(FieldError) as cm:
+            testfield = MoneyField(name='testfield', decimal_places=2)
+        self.assertIn('max_digits', cm.exception.args[0])
+    
+    def test_invalid_option_currency_default(self):
+        with self.assertRaises(FieldError) as cm:
+            testfield = MoneyField(
+                name='testfield',
+                decimal_places=2,
+                max_digits=8,
+                currency='USD',
+                currency_default='USD',
+            )
+        self.assertIn('has fixed currency', cm.exception.args[0])
+    
+    def test_invalid_option_currency_choices(self):
+        with self.assertRaises(FieldError) as cm:
+            testfield = MoneyField(
+                name='testfield',
+                decimal_places=2,
+                max_digits=8,
+                currency='USD',
+                currency_choices=(('USD', 'USD'),),
+            )
+        self.assertIn('has fixed currency', cm.exception.args[0])
 
 
 class TestFixedCurrencyField(TestCase):
@@ -90,103 +127,212 @@ class TestFixedCurrencyField(TestCase):
 
 class TestVariableCurrencyField(TestCase):
     def setUp(self):
-        self.table_name = Translator._meta.db_table
+        self.table_name = Transaction._meta.db_table
         self.cursor = connection.cursor()
     
     def tearDown(self):
-        Translator.objects.all().delete()
+        Transaction.objects.all().delete()
     
     def create_instance(self):
-        return Translator.objects.create(
-            fee_amount=Decimal('45.00'), 
-            fee_currency='USD'
+        return Transaction.objects.create(
+            value_amount=Decimal('12345.67'), 
+            value_currency='USD'
         )
     
     def test_db_schema_no_plain_field_name(self):
-        # SQL error "no such column: fee" might vary
         with self.assertRaises(DatabaseError):
-            self.cursor.execute('SELECT fee from {}'.format(self.table_name))
+            self.cursor.execute('SELECT value from {}'.format(self.table_name))
     
     def test_db_schema_amount_field(self):
-        self.cursor.execute('SELECT fee_amount from {}'.format(self.table_name))
+        self.cursor.execute('SELECT value_amount from {}'.format(self.table_name))
         self.assertEqual(self.cursor.fetchall(), [])
     
     def test_db_schema_currency_field(self):
-        self.cursor.execute('SELECT fee_currency from {}'.format(self.table_name))
+        self.cursor.execute('SELECT value_currency from {}'.format(self.table_name))
         self.assertEqual(self.cursor.fetchall(), [])
     
     def test_manager_create_with_money(self):
         with self.assertRaises(TypeError):
-            translator = Translator.objects.create(fee=Money('45.00', 'USD'))
+            transaction = Transaction.objects.create(value=Money('12345.67', 'USD'))
     
     def test_manager_create_with_values(self):
-        translator = self.create_instance()
-        self.assertEqual(translator.fee_amount, Decimal('45.00'))
-        self.assertEqual(translator.fee_currency, 'USD')
+        transaction = self.create_instance()
+        self.assertEqual(transaction.value_amount, Decimal('12345.67'))
+        self.assertEqual(transaction.value_currency, 'USD')
     
     def test_instance_descriptor_get(self):
-        translator = self.create_instance()
-        self.assertEqual(translator.fee, Money('45.00', 'USD'))
+        transaction = self.create_instance()
+        self.assertEqual(transaction.value, Money('12345.67', 'USD'))
     
     def test_instance_descriptor_set(self):
-        translator = self.create_instance()
-        self.assertEqual(translator.fee, Money('45.00', 'USD'))
-        translator.fee = Money('25.00', 'USD')
-        self.assertEqual(translator.fee, Money('25.00', 'USD'))
-        translator.save()
-        self.assertEqual(translator.fee, Money('25.00', 'USD'))
+        transaction = self.create_instance()
+        self.assertEqual(transaction.value, Money('12345.67', 'USD'))
+        transaction.value = Money('25.00', 'USD')
+        self.assertEqual(transaction.value, Money('25.00', 'USD'))
+        transaction.save()
+        self.assertEqual(transaction.value, Money('25.00', 'USD'))
     
     def test_instance_create(self):
-        translator = Translator()
-        translator.fee = Money('45.00', 'USD')
-        translator.save()
-        self.assertEqual(translator.fee, Money('45.00', 'USD'))
+        transaction = Transaction()
+        transaction.value = Money('1', 'USD')
+        transaction.save()
+        self.assertEqual(transaction.value, Money('1', 'USD'))
     
     def test_instance_retrieval(self):
-        translator = self.create_instance()
-        translator_retrieved = Translator.objects.all()[0]
-        self.assertEqual(translator_retrieved.fee, Money('45.00', 'USD'))
+        transaction = self.create_instance()
+        transaction_retrieved = Transaction.objects.all()[0]
+        self.assertEqual(transaction_retrieved.value, Money('12345.67', 'USD'))
     
     def test_query_money(self):
-        translator = self.create_instance()
+        transaction = self.create_instance()
         with self.assertRaises(FieldError):
-            results = Translator.objects.filter(fee=Money('45.00', 'USD'))
+            results = Transaction.objects.filter(value=Money('12345.67', 'USD'))
     
     def test_query_amount(self):
-        translator = self.create_instance()
-        results = Translator.objects.filter(fee_amount=Decimal('45.00'))
-        self.assertEqual(translator.fee, results[0].fee)
+        transaction = self.create_instance()
+        results = Transaction.objects.filter(value_amount=Decimal('12345.67'))
+        self.assertEqual(transaction.value, results[0].value)
     
     def test_query_currency(self):
-        translator = self.create_instance()
-        results = Translator.objects.filter(fee_currency='USD')
-        self.assertEqual(translator.fee, results[0].fee)
+        transaction = self.create_instance()
+        results = Transaction.objects.filter(value_currency='USD')
+        self.assertEqual(transaction.value, results[0].value)
 
 
 class TestCurrencyChoices(TestCase):
+    def setUp(self):
+        self.Form = modelform_factory(Translator, form=MoneyModelForm)
+    
     def tearDown(self):
-        Transaction.objects.all().delete()
+        Translator.objects.all().delete()
     
     def test_default_currency(self):
-        transaction = Transaction.objects.create(
-            value_amount=Decimal('1234567.89')
+        translator = Translator.objects.create(
+            fee_amount=Decimal('45.67')
         )
-        self.assertEqual(transaction.value, Money('1234567.89', 'USD'))
+        self.assertEqual(translator.fee, Money('45.67', 'USD'))
     
     def test_valid_currency(self):
-        form = TransactionModelForm(data={
-            'value_amount': Decimal('1234567.89'),
-            'value_currency': 'USD',
-        })
-        self.assertTrue(form.is_valid())
+        translator = Translator.objects.create(
+            fee_amount=Decimal('45.67'),
+            fee_currency='EUR',
+        )
+        translator.full_clean()
     
     def test_invalid_currency(self):
-        form = TransactionModelForm(data={
-            'value_amount': Decimal('1234567.89'),
-            'value_currency': 'XXX',
-        })
-        self.assertFalse(form.is_valid())
+        translator = Translator.objects.create(
+            fee_amount=Decimal('45.67'),
+            fee_currency='XXX',
+        )
+        with self.assertRaises(ValidationError):
+            translator.full_clean()
 
+
+class TestMoneyModelFormBasics(TestCase):
+    def test_field_natural_order(self):
+        form = modelform_factory(SomeMoney, form=MoneyModelForm)()
+        self.assertEqual(list(form.fields.keys()), ['field1', 'field2', 'field3'])
+    
+    def test_moneyfield_only(self):
+        TransactionForm = modelform_factory(Transaction, form=MoneyModelForm)
+        form = TransactionForm()
+        names = form.fields.keys()
+        self.assertIn('value', names)
+        self.assertEqual(type(form.fields['value']), MoneyFormField)
+        self.assertNotIn('value_amount', names)
+        self.assertNotIn('value_currency', names)
+
+
+class TestMoneyModelFormDataDict(TestCase):
+    def setUp(self):
+        self.Form = modelform_factory(Transaction, form=MoneyModelForm)
+    
+    def test_data_decompressed(self):
+        form = self.Form(data={
+            'value_0': Decimal(123),
+            'value_1': 'USD',
+        })
+        self.assertTrue(form.is_valid())
+        transaction = form.save()
+        self.assertEqual(transaction.value, Money(123, 'USD'))
+    
+    def test_data_compressed(self):
+        form = self.Form(data={
+            'value': Money(123, 'USD')
+        })
+        self.assertTrue(form.is_valid())
+        transaction = form.save()
+        self.assertEqual(transaction.value, Money(123, 'USD'))
+
+
+class TestFreeCurrencyMoneyModelForm(TestCase):
+    def setUp(self):
+        self.Form = modelform_factory(Transaction, form=MoneyModelForm)
+    
+    def test_initial(self):
+        form = self.Form(initial={
+            'value': Money('1000.00', 'CHF'),
+        })
+        html = form.as_p()
+        self.assertIn('value="1000.00"', html)
+        self.assertIn('value="CHF"', html)
+    
+    def test_create_object(self):
+        form = self.Form({
+            'value_0': Decimal('123.99'),
+            'value_1': 'GBP',
+        })
+        self.assertTrue(form.is_valid())
+        obj = form.save()
+        self.assertEqual(obj.value, Money('123.99', 'GBP'))
+
+
+class TestCurrencyChoicesMoneyModelForm(TestCase):
+    def setUp(self):
+        self.Form = modelform_factory(Translator, form=MoneyModelForm)
+    
+    def test_initial(self):
+        form = self.Form(initial={
+            'fee': Money('1.00', 'EUR'),
+        })
+        html = form.as_p()
+        self.assertIn('value="1.00"', html)
+        self.assertIn('value="EUR" selected="selected"', html)
+    
+    def test_create_object(self):
+        form = self.Form({
+            'fee_0': Decimal('33.44'),
+            'fee_1': 'USD',
+        })
+        self.assertTrue(form.is_valid())
+        obj = form.save()
+        self.assertEqual(obj.fee, Money('33.44', 'USD'))
+    
+    def test_currency_initial_from_default(self):
+        form = self.Form()
+        self.assertEqual(Translator.CURRENCY_DEFAULT, 'USD')
+        self.assertEqual(form.fields['fee'].fields[1].initial, 'USD')
+        self.assertEqual(form['fee'].field.initial, [None, 'USD'])
+        self.assertEqual(form.instance.fee_currency, 'USD')
+    
+    def test_currency_widget_choices(self):
+        form = self.Form()
+        self.assertEqual(form.fields['fee'].fields[1].choices,
+                         [('EUR', 'EUR'), ('USD', 'USD'), ('CNY', 'CNY')])
+
+
+class TestFixedCurrencyModelForm(TestCase):
+    def setUp(self):
+        self.Form = modelform_factory(Book, form=MoneyModelForm)
+    
+    def test_create_object(self):
+        form = self.Form({
+            'price_0': Decimal('9.99'),
+            'price_1': 'EUR',
+        })
+        self.assertTrue(form.is_valid())
+        book = form.save()
+        self.assertEqual(book.price, Money('9.99', 'EUR'))
 
 
 
