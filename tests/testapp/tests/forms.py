@@ -5,11 +5,12 @@ from django.test import TestCase
 
 from money import Money
 
-from moneyfield import MoneyField, MoneyModelForm
-from moneyfield.fields import MoneyFormField
 from moneyfield import conf
+from moneyfield.exceptions import *
+from moneyfield.fields import MoneyFormField
+from moneyfield import MoneyField, MoneyModelForm
 
-from testapp.models import (FixedCurrencyModel, FreeCurrencyModel,
+from testapp.models import (DummyModel, FixedCurrencyModel, FreeCurrencyModel,
                             ChoicesCurrencyModel, SomeMoney)
 
 
@@ -20,6 +21,10 @@ class TestMoneyModelFormOrdering(TestCase):
 
 
 class TestMoneyModelFormValidation(TestCase):
+    def test_model_without_moneyfields(self):
+        with self.assertRaises(MoneyModelFormError):
+            Form = modelform_factory(DummyModel, form=MoneyModelForm)
+    
     def test_excluded_all_moneyfield_parts(self):
         Form = modelform_factory(FixedCurrencyModel, form=MoneyModelForm, 
                                  exclude=['price_amount', 'price_currency'])
@@ -33,25 +38,25 @@ class TestMoneyModelFormValidation(TestCase):
     def test_excluded_amount_free_currency(self):
         Form = modelform_factory(FreeCurrencyModel, form=MoneyModelForm, 
                                  exclude=['price_amount'])
-        with self.assertRaises(Exception):
+        with self.assertRaises(MoneyModelFormError):
             form = Form()
     
     def test_excluded_amount_choices_currency(self):
         Form = modelform_factory(ChoicesCurrencyModel, form=MoneyModelForm, 
                                  exclude=['price_amount'])
-        with self.assertRaises(Exception):
+        with self.assertRaises(MoneyModelFormError):
             form = Form()
     
     def test_excluded_currency_free_currency(self):
         Form = modelform_factory(FreeCurrencyModel, form=MoneyModelForm, 
                                  exclude=['price_currency'])
-        with self.assertRaises(Exception):
+        with self.assertRaises(MoneyModelFormError):
             form = Form()
     
     def test_excluded_currency_choices_currency(self):
         Form = modelform_factory(ChoicesCurrencyModel, form=MoneyModelForm, 
                                  exclude=['price_currency'])
-        with self.assertRaises(Exception):
+        with self.assertRaises(MoneyModelFormError):
             form = Form()
 
 
@@ -101,7 +106,7 @@ class TestFixedCurrencyModelForm(MoneyModelFormMixin, TestCase):
         form = self.Form(initial={
             'price': Money('1234.00', 'USD'),
         })
-        with self.assertRaises(Exception):
+        with self.assertRaises(InvalidMoneyFieldCurrency):
             html = form.as_p()
     
     def test_invalid_data_decompressed(self):

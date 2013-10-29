@@ -2,6 +2,10 @@ from django.db import models
 from moneyfield import MoneyField
 
 
+class DummyModel(models.Model):
+    name = models.CharField(blank=True, max_length=100)
+
+
 class FixedCurrencyModel(models.Model):
     name = models.CharField(blank=True, max_length=100)
     price = MoneyField(decimal_places=2, max_digits=12, currency='EUR')

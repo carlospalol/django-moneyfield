@@ -14,9 +14,12 @@ from django.db.models import NOT_PROVIDED
 
 from money import Money
 
+from .exceptions import *
+
+
+__all__ = ['MoneyField', 'MoneyModelForm']
 
 logger = logging.getLogger(__name__)
-
 
 REGEX_CURRENCY_CODE = re.compile("[A-Z]{3}")
 def currency_code_validator(value):
@@ -32,7 +35,7 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
         
         modelopts = new_class._meta.model._meta
         if not hasattr(modelopts, 'moneyfields'):
-            raise Exception("The Model used with this ModelForm does not contain MoneyFields")
+            raise MoneyModelFormError("The Model used with this ModelForm does not contain MoneyFields")
         
         # Rebuild the dict of form fields by replacing fields derived from
         # money subfields with a specialised money multivalue form field,
@@ -72,7 +75,7 @@ class MoneyModelForm(forms.ModelForm, metaclass=MoneyModelFormMetaclass):
                 if not moneyfield.fixed_currency:
                     if not ((moneyfield.amount_attr in opts.exclude) == 
                             (moneyfield.currency_attr in opts.exclude)):
-                        raise Exception('Cannot exclude only one money field from the model form.')
+                        raise MoneyModelFormError('Cannot exclude only one money field from the model form.')
     
     def clean(self):
         cleaned_data = super().clean()
@@ -96,7 +99,7 @@ class MoneyWidget(forms.MultiWidget):
             return [value.amount, value.currency]
         if value is None:
             return [None, None]
-        raise Exception('MoneyWidgets accept only Money.')
+        raise TypeError('MoneyWidgets accept only Money.')
     
     def format_output(self, rendered_widgets):
         return ' '.join(rendered_widgets)
@@ -132,7 +135,7 @@ class FixedCurrencyWidget(forms.Widget):
     
     def render(self, name, value, attrs=None):
         if value and not value is self.currency:
-            raise Exception('FixedCurrencyWidget with currency "{}" cannot be rendered with currency "{}".'.format(self.currency, value))
+            raise InvalidMoneyFieldCurrency('FixedCurrencyWidget "{}" with fixed currency "{}" cannot be rendered with currency "{}".'.format(name, self.currency, value))
         final_attrs = self.build_attrs(attrs, style='vertical-align: middle;')
         return format_html('<span{0}>{1}</span>', flatatt(final_attrs), self.currency)
 
