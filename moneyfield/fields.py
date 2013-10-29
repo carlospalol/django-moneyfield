@@ -100,10 +100,25 @@ class MoneyFormField(forms.MultiValueField):
         return Money(data_list[0], data_list[1])
 
 
-class FixedCurrencyField(forms.CharField):
-    def __init__(self, *args, **kwargs):
-        kwargs['max_length'] = 3
-        kwargs['min_length'] = 3
+class FixedCurrencyWidget(forms.Widget):
+    def __init__(self, attrs=None, currency=None):
+        super().__init__(attrs=attrs)
+        assert currency
+        self.currency = currency
+    
+    def render(self, name, value, attrs=None):
+        if value and not value is self.currency:
+            raise Exception('FixedCurrencyWidget with currency "{}" cannot render value "{}".'.format(self.currency, value))
+        return '<span style="vertical-align: middle;">{}</span>'.format(self.currency)
+    
+    def value_from_datadict(self, data, files, name):
+        return self.currency
+
+
+class FixedCurrencyField(forms.Field):
+    def __init__(self, currency=None, *args, **kwargs):
+        assert currency
+        self.widget = FixedCurrencyWidget(currency=currency)
         super().__init__(*args, **kwargs)
 
 
@@ -221,7 +236,7 @@ class MoneyField(models.Field):
                 validators=[currency_code_validator]
             )
         else:
-            formfield_currency = FixedCurrencyField()
+            formfield_currency = FixedCurrencyField(currency=self.fixed_currency)
         
         widget_amount = formfield_amount.widget
         widget_currency = formfield_currency.widget

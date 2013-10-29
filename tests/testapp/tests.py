@@ -298,18 +298,19 @@ class TestCurrencyChoicesMoneyModelForm(TestCase):
         self.assertEqual(form.fields['fee'].fields[1].choices,
                          [('EUR', 'EUR'), ('USD', 'USD'), ('CNY', 'CNY')])
 
-# class TestFixedCurrencyModelForm(TestCase):
-#     def setUp(self):
-#         self.BookForm = modelform_factory(Book, form=MoneyModelForm)
-#     
-#     def test_initial(self):
-#         form = self.BookForm(initial={
-#             'name': 'Neo',
-#             'fee': Money('1.00', 'EUR'),
-#         })
-#         html = form.as_p()
-#         self.assertIn('value="Neo"', html)
-#         self.assertIn('value="1.00"', html)
+
+class TestFixedCurrencyModelForm(TestCase):
+    def setUp(self):
+        self.Form = modelform_factory(Book, form=MoneyModelForm)
+    
+    def test_create_object(self):
+        form = self.Form({
+            'price_0': Decimal('9.99'),
+            'price_1': 'EUR',
+        })
+        self.assertTrue(form.is_valid())
+        book = form.save()
+        self.assertEqual(book.price, Money('9.99', 'EUR'))
 
 
 
