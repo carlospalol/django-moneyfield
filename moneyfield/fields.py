@@ -49,7 +49,6 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
                 fields[fieldname] = field
         
         new_class.base_fields = fields
-        
         return new_class
 
 
@@ -93,7 +92,7 @@ class MoneyWidget(forms.MultiWidget):
     def value_from_datadict(self, data, files, name):
         # Enable datadict value to be compressed
         if name in data:
-            return [data[name].amount, data[name].currency]
+            return self.decompress(data[name])
         else:
             return super().value_from_datadict(data, files, name)
 
@@ -114,21 +113,28 @@ class FixedCurrencyWidget(forms.Widget):
         super().__init__(attrs=attrs)
         self.currency = currency
     
+    def value_from_datadict(self, data, files, name):
+        # Defaults to fixed currency
+        value = super().value_from_datadict(data, files, name)
+        return value or self.currency
+    
     def render(self, name, value, attrs=None):
         if value and not value is self.currency:
             raise Exception('FixedCurrencyWidget with currency "{}" cannot be rendered with currency "{}".'.format(self.currency, value))
         final_attrs = self.build_attrs(attrs, style='vertical-align: middle;')
         return format_html('<span{0}>{1}</span>', flatatt(final_attrs), self.currency)
-    
-    def value_from_datadict(self, data, files, name):
-        return self.currency
 
 
-class FixedCurrencyField(forms.Field):
+class FixedCurrencyFormField(forms.Field):
     def __init__(self, currency=None, *args, **kwargs):
         assert currency
+        self.currency = currency
         self.widget = FixedCurrencyWidget(currency=currency)
         super().__init__(*args, **kwargs)
+    
+    def validate(self, value):
+        if not value is self.currency:
+            raise ValidationError('Invalid currency "{}" for "{}"-only FixedCurrencyFormField'.format(value, self.currency))
 
 
 class AbstractMoneyProxy(object):
@@ -245,7 +251,7 @@ class MoneyField(models.Field):
                 validators=[currency_code_validator]
             )
         else:
-            formfield_currency = FixedCurrencyField(currency=self.fixed_currency)
+            formfield_currency = FixedCurrencyFormField(currency=self.fixed_currency)
         
         widget_amount = formfield_amount.widget
         widget_currency = formfield_currency.widget

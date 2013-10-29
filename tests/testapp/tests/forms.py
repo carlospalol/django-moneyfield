@@ -67,6 +67,27 @@ class TestFixedCurrencyModelForm(MoneyModelFormMixin, TestCase):
         })
         with self.assertRaises(Exception):
             html = form.as_p()
+    
+    def test_invalid_data_decompressed(self):
+        form = self.Form(data={
+            'price_0': Decimal('1234.00'),
+            'price_1': 'GBP',
+        })
+        self.assertFalse(form.is_valid())
+    
+    def test_invalid_data_compressed(self):
+        form = self.Form(data={
+            'price': Money('1234.00', 'GBP'),
+        })
+        self.assertFalse(form.is_valid())
+    
+    def test_data_decompressed_fixed_currency(self):
+        form = self.Form(data={
+            'price_0': Decimal('1234.00'),
+        })
+        self.assertTrue(form.is_valid())
+        obj = form.save()
+        self.assertEqual(obj.price, Money('1234.00', 'EUR'))
 
 
 class TestFreeCurrencyMoneyModelForm(MoneyModelFormMixin, TestCase):
