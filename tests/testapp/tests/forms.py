@@ -19,6 +19,42 @@ class TestMoneyModelFormOrdering(TestCase):
         self.assertEqual(list(form.fields.keys()), ['field1', 'field2', 'field3'])
 
 
+class TestMoneyModelFormValidation(TestCase):
+    def test_excluded_all_moneyfield_parts(self):
+        Form = modelform_factory(FixedCurrencyModel, form=MoneyModelForm, 
+                                 exclude=['price_amount', 'price_currency'])
+        form = Form()
+    
+    def test_excluded_amount_fixed_currency(self):
+        Form = modelform_factory(FixedCurrencyModel, form=MoneyModelForm, 
+                                 exclude=['price_amount'])
+        form = Form()
+    
+    def test_excluded_amount_free_currency(self):
+        Form = modelform_factory(FreeCurrencyModel, form=MoneyModelForm, 
+                                 exclude=['price_amount'])
+        with self.assertRaises(Exception):
+            form = Form()
+    
+    def test_excluded_amount_choices_currency(self):
+        Form = modelform_factory(ChoicesCurrencyModel, form=MoneyModelForm, 
+                                 exclude=['price_amount'])
+        with self.assertRaises(Exception):
+            form = Form()
+    
+    def test_excluded_currency_free_currency(self):
+        Form = modelform_factory(FreeCurrencyModel, form=MoneyModelForm, 
+                                 exclude=['price_currency'])
+        with self.assertRaises(Exception):
+            form = Form()
+    
+    def test_excluded_currency_choices_currency(self):
+        Form = modelform_factory(ChoicesCurrencyModel, form=MoneyModelForm, 
+                                 exclude=['price_currency'])
+        with self.assertRaises(Exception):
+            form = Form()
+
+
 class MoneyModelFormMixin(object):
     def test_moneyfield_only(self):
         form = self.Form()

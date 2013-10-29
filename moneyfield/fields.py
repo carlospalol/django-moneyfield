@@ -54,22 +54,34 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
 
 class MoneyModelForm(forms.ModelForm, metaclass=MoneyModelFormMetaclass):
     def __init__(self, *args, initial={}, instance=None, **kwargs):
+        opts = self._meta
+        modelopts = opts.model._meta
         if instance:
             # Populate the multivalue form field using the initial dict,
             # as model_to_dict() only sees the model's _meta.fields
-            opts = instance._meta
-            for moneyfield in opts.moneyfields:
+            for moneyfield in modelopts.moneyfields:
                 initial.update({
                     moneyfield.name: getattr(instance, moneyfield.name)}
                 )
+        
         super().__init__(*args, initial=initial, instance=instance, **kwargs)
+        
+        # Money "subfields" cannot be excluded separately
+        if opts.exclude:
+            for moneyfield in modelopts.moneyfields:
+                if not moneyfield.fixed_currency:
+                    if not ((moneyfield.amount_attr in opts.exclude) == 
+                            (moneyfield.currency_attr in opts.exclude)):
+                        raise Exception('Cannot exclude only one money field from the model form.')
     
     def clean(self):
         cleaned_data = super().clean()
-        # Finish the work of forms.models.construct_instance() as it can't
-        # discover the moneyfields by looking inside the model's _meta.fields
-        opts = self.instance._meta
-        for moneyfield in opts.moneyfields:
+        # Finish the work of forms.models.construct_instance() as it doesn't
+        # find match between the form multivalue field (e.g. "price"), and the
+        # model's _meta.fields (e.g. "price_amount" and "price_currency").
+        opts = self._meta
+        modelopts = opts.model._meta
+        for moneyfield in modelopts.moneyfields:
             if moneyfield.name in self.cleaned_data:
                 value = self.cleaned_data[moneyfield.name]
                 if value:
