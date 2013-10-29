@@ -88,6 +88,13 @@ class MoneyWidget(forms.MultiWidget):
     
     def format_output(self, rendered_widgets):
         return ' '.join(rendered_widgets)
+    
+    def value_from_datadict(self, data, files, name):
+        # Enable datadict value to be compressed
+        if name in data:
+            return [data[name].amount, data[name].currency]
+        else:
+            return super().value_from_datadict(data, files, name)
 
 
 class MoneyFormField(forms.MultiValueField):

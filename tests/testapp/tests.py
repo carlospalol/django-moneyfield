@@ -243,6 +243,28 @@ class TestMoneyModelFormBasics(TestCase):
         self.assertNotIn('value_currency', names)
 
 
+class TestMoneyModelFormDataDict(TestCase):
+    def setUp(self):
+        self.Form = modelform_factory(Transaction, form=MoneyModelForm)
+    
+    def test_data_decompressed(self):
+        form = self.Form(data={
+            'value_0': Decimal(123),
+            'value_1': 'USD',
+        })
+        self.assertTrue(form.is_valid())
+        transaction = form.save()
+        self.assertEqual(transaction.value, Money(123, 'USD'))
+    
+    def test_data_compressed(self):
+        form = self.Form(data={
+            'value': Money(123, 'USD')
+        })
+        self.assertTrue(form.is_valid())
+        transaction = form.save()
+        self.assertEqual(transaction.value, Money(123, 'USD'))
+
+
 class TestFreeCurrencyMoneyModelForm(TestCase):
     def setUp(self):
         self.Form = modelform_factory(Transaction, form=MoneyModelForm)
