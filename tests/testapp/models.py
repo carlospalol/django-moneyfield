@@ -1,24 +1,64 @@
+from decimal import Decimal
+
 from django.db import models
+
 from moneyfield import MoneyField
 
 
-CURRENCY_CHOICES = (
-    ('EUR', 'EUR'),
-    ('USD', 'USD'),
-    ('CNY', 'CNY'),
-)
-CURRENCY_DEFAULT = 'USD'
+class DummyModel(models.Model):
+    name = models.CharField(blank=True, max_length=100)
 
 
-class Book(models.Model):
-    price = MoneyField(decimal_places=2, max_digits=8, currency='EUR')
+class FixedCurrencyModel(models.Model):
+    name = models.CharField(blank=True, max_length=100)
+    price = MoneyField(decimal_places=2, max_digits=12, currency='EUR')
 
 
-class Translator(models.Model):
-    fee = MoneyField(decimal_places=2, max_digits=8)
+class FixedCurrencyDefaultAmountModel(models.Model):
+    name = models.CharField(blank=True, max_length=100)
+    price = MoneyField(decimal_places=2, max_digits=12, currency='EUR', amount_default=Decimal('1234.00'))
 
 
-class Transaction(models.Model):
-    value = MoneyField(decimal_places=2, max_digits=12,
+class FreeCurrencyModel(models.Model):
+    name = models.CharField(blank=True, max_length=100)
+    price = MoneyField(decimal_places=2, max_digits=12)
+
+
+class FreeCurrencyDefaultAmountModel(models.Model):
+    name = models.CharField(blank=True, max_length=100)
+    price = MoneyField(decimal_places=2, max_digits=12, amount_default=Decimal('1234.00'))
+
+
+class ChoicesCurrencyModel(models.Model):
+    CURRENCY_CHOICES = (
+        ('EUR', 'EUR'),
+        ('USD', 'USD'),
+        ('CNY', 'CNY'),
+    )
+    CURRENCY_DEFAULT = 'EUR'
+    
+    name = models.CharField(blank=True, max_length=100)
+    price = MoneyField(decimal_places=2, max_digits=12, 
                        currency_choices=CURRENCY_CHOICES,
                        currency_default=CURRENCY_DEFAULT)
+
+
+class ChoicesCurrencyDefaultAmounModel(models.Model):
+    CURRENCY_CHOICES = (
+        ('EUR', 'EUR'),
+        ('USD', 'USD'),
+        ('CNY', 'CNY'),
+    )
+    CURRENCY_DEFAULT = 'EUR'
+    
+    name = models.CharField(blank=True, max_length=100)
+    price = MoneyField(decimal_places=2, max_digits=12, 
+                       amount_default=Decimal('1234.00'),
+                       currency_choices=CURRENCY_CHOICES,
+                       currency_default=CURRENCY_DEFAULT)
+
+
+class SomeMoney(models.Model):
+    field1 = models.CharField(blank=True, max_length=100)
+    field2 = MoneyField(decimal_places=2, max_digits=12)
+    field3 = models.CharField(blank=True, max_length=100)
