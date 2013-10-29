@@ -14,9 +14,12 @@ from django.db.models import NOT_PROVIDED
 
 from money import Money
 
+from .exceptions import *
+
+
+__all__ = ['MoneyField', 'MoneyModelForm']
 
 logger = logging.getLogger(__name__)
-
 
 REGEX_CURRENCY_CODE = re.compile("[A-Z]{3}")
 def currency_code_validator(value):
@@ -32,7 +35,7 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
         
         modelopts = new_class._meta.model._meta
         if not hasattr(modelopts, 'moneyfields'):
-            raise Exception("The Model used with this ModelForm does not contain MoneyFields")
+            raise MoneyModelFormError("The Model used with this ModelForm does not contain MoneyFields")
         
         # Rebuild the dict of form fields by replacing fields derived from
         # money subfields with a specialised money multivalue form field,
@@ -54,22 +57,34 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
 
 class MoneyModelForm(forms.ModelForm, metaclass=MoneyModelFormMetaclass):
     def __init__(self, *args, initial={}, instance=None, **kwargs):
+        opts = self._meta
+        modelopts = opts.model._meta
         if instance:
             # Populate the multivalue form field using the initial dict,
             # as model_to_dict() only sees the model's _meta.fields
-            opts = instance._meta
-            for moneyfield in opts.moneyfields:
+            for moneyfield in modelopts.moneyfields:
                 initial.update({
                     moneyfield.name: getattr(instance, moneyfield.name)}
                 )
+        
         super().__init__(*args, initial=initial, instance=instance, **kwargs)
+        
+        # Money "subfields" cannot be excluded separately
+        if opts.exclude:
+            for moneyfield in modelopts.moneyfields:
+                if not moneyfield.fixed_currency:
+                    if not ((moneyfield.amount_attr in opts.exclude) == 
+                            (moneyfield.currency_attr in opts.exclude)):
+                        raise MoneyModelFormError('Cannot exclude only one money field from the model form.')
     
     def clean(self):
         cleaned_data = super().clean()
-        # Finish the work of forms.models.construct_instance() as it can't
-        # discover the moneyfields by looking inside the model's _meta.fields
-        opts = self.instance._meta
-        for moneyfield in opts.moneyfields:
+        # Finish the work of forms.models.construct_instance() as it doesn't
+        # find match between the form multivalue field (e.g. "price"), and the
+        # model's _meta.fields (e.g. "price_amount" and "price_currency").
+        opts = self._meta
+        modelopts = opts.model._meta
+        for moneyfield in modelopts.moneyfields:
             if moneyfield.name in self.cleaned_data:
                 value = self.cleaned_data[moneyfield.name]
                 if value:
@@ -84,7 +99,7 @@ class MoneyWidget(forms.MultiWidget):
             return [value.amount, value.currency]
         if value is None:
             return [None, None]
-        raise Exception('MoneyWidgets accept only Money.')
+        raise TypeError('MoneyWidgets accept only Money.')
     
     def format_output(self, rendered_widgets):
         return ' '.join(rendered_widgets)
@@ -120,7 +135,7 @@ class FixedCurrencyWidget(forms.Widget):
     
     def render(self, name, value, attrs=None):
         if value and not value is self.currency:
-            raise Exception('FixedCurrencyWidget with currency "{}" cannot be rendered with currency "{}".'.format(self.currency, value))
+            raise InvalidMoneyFieldCurrency('FixedCurrencyWidget "{}" with fixed currency "{}" cannot be rendered with currency "{}".'.format(name, self.currency, value))
         final_attrs = self.build_attrs(attrs, style='vertical-align: middle;')
         return format_html('<span{0}>{1}</span>', flatatt(final_attrs), self.currency)
 
@@ -192,9 +207,11 @@ class CompositeMoneyProxy(AbstractMoneyProxy):
 class MoneyField(models.Field):
     description = "Money"
     
-    def __init__(self, verbose_name=None, name=None, max_digits=None,
-                 decimal_places=None, currency=None, currency_choices=None,
-                 currency_default=NOT_PROVIDED, default=None, **kwargs):
+    def __init__(self, verbose_name=None, name=None,
+                 max_digits=None, decimal_places=None,
+                 currency=None, currency_choices=None,
+                 currency_default=NOT_PROVIDED,
+                 default=None, amount_default=None, **kwargs):
         
         super().__init__(verbose_name, name, default=default, **kwargs)
         self.fixed_currency = currency
@@ -212,6 +229,7 @@ class MoneyField(models.Field):
         self.amount_field = models.DecimalField(
             decimal_places=decimal_places,
             max_digits=max_digits,
+            default=amount_default,
             **kwargs
         )
         if not self.fixed_currency:
