@@ -166,10 +166,10 @@ class TestChoicesCurrencyMoneyModelForm(MoneyModelFormMixin, TestCase):
     
     def test_currency_initial_from_default(self):
         form = self.Form()
-        self.assertEqual(ChoicesCurrencyModel.CURRENCY_DEFAULT, 'USD')
-        self.assertEqual(form.fields['price'].fields[1].initial, 'USD')
-        self.assertEqual(form['price'].field.initial, [None, 'USD'])
-        self.assertEqual(form.instance.price_currency, 'USD')
+        self.assertEqual(ChoicesCurrencyModel.CURRENCY_DEFAULT, 'EUR')
+        self.assertEqual(form.fields['price'].fields[1].initial, 'EUR')
+        self.assertEqual(form['price'].field.initial, [None, 'EUR'])
+        self.assertEqual(form.instance.price_currency, 'EUR')
     
     def test_currency_widget_choices(self):
         form = self.Form()

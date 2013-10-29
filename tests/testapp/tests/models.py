@@ -11,8 +11,7 @@ from money import Money
 from moneyfield import MoneyField
 from moneyfield import conf
 
-from testapp.models import (FixedCurrencyModel, FreeCurrencyModel,
-                            ChoicesCurrencyModel, SomeMoney)
+from testapp.models import *
 
 
 class TestAppConfiguration(TestCase):
@@ -57,174 +56,152 @@ class TestFieldValidation(TestCase):
         self.assertIn('has fixed currency', cm.exception.args[0])
 
 
-class TestFixedCurrencyField(TestCase):
+class TestMoneyFieldMixin(object):
     def setUp(self):
-        self.table_name = FixedCurrencyModel._meta.db_table
+        self.table_name = self.model._meta.db_table
         self.cursor = connection.cursor()
     
     def tearDown(self):
-        FixedCurrencyModel.objects.all().delete()
+        self.model.objects.all().delete()
     
-    def create_instance(self):
-        return FixedCurrencyModel.objects.create(price_amount=Decimal('9.99'))
+    def manager_create_instance(self):
+        raise NotImplementedError()
+    
+    def test_manager_create(self):
+        obj = self.manager_create_instance()
+    
+    def test_instance_create(self):
+        obj = self.model()
+        obj.price = Money('1234.00', 'EUR')
+        obj.save()
+        self.assertEqual(obj.price, Money('1234.00', 'EUR'))
+    
+    def test_instance_amount(self):
+        obj = self.manager_create_instance()
+        self.assertEqual(obj.price_amount, Decimal('1234.00'))
     
     def test_db_schema_no_plain_field_name(self):
-        # SQL error "no such column: price" might vary
         with self.assertRaises(DatabaseError):
             self.cursor.execute('SELECT price from {}'.format(self.table_name))
     
     def test_db_schema_amount_field(self):
         self.cursor.execute('SELECT price_amount from {}'.format(self.table_name))
         self.assertEqual(self.cursor.fetchall(), [])
-    
-    def test_db_schema_no_currency_field(self):
-        # SQL error "no such column: price_currency" might vary
-        with self.assertRaises(DatabaseError):
-            self.cursor.execute('SELECT price_currency from {}'.format(self.table_name))
     
     def test_manager_create_with_money(self):
         with self.assertRaises(TypeError):
-            book = FixedCurrencyModel.objects.create(price=Money('9.99', 'EUR'))
-    
-    def test_manager_create_with_amount(self):
-        book = self.create_instance()
-        self.assertEqual(book.price_amount, Decimal('9.99'))
+            obj = self.model.objects.create(price=Money('1234.00', 'EUR'))
     
     def test_instance_descriptor_get(self):
-        book = self.create_instance()
-        self.assertEqual(book.price, Money('9.99', 'EUR'))
+        obj = self.manager_create_instance()
+        self.assertEqual(obj.price, Money('1234.00', 'EUR'))
     
     def test_instance_descriptor_set(self):
-        book = self.create_instance()
-        self.assertEqual(book.price, Money('9.99', 'EUR'))
-        book.price = Money('19.99', 'EUR')
-        self.assertEqual(book.price, Money('19.99', 'EUR'))
-        book.save()
-        self.assertEqual(book.price, Money('19.99', 'EUR'))
-    
-    def test_instance_create(self):
-        book = FixedCurrencyModel()
-        book.price = Money('9.99', 'EUR')
-        book.save()
-        self.assertEqual(book.price, Money('9.99', 'EUR'))
+        obj = self.manager_create_instance()
+        self.assertEqual(obj.price, Money('1234.00', 'EUR'))
+        obj.price = Money('0.99', 'EUR')
+        self.assertEqual(obj.price, Money('0.99', 'EUR'))
+        obj.save()
+        self.assertEqual(obj.price, Money('0.99', 'EUR'))
     
     def test_instance_retrieval(self):
-        book = self.create_instance()
-        book_retrieved = FixedCurrencyModel.objects.all()[0]
-        self.assertEqual(book_retrieved.price, Money('9.99', 'EUR'))
+        obj = self.manager_create_instance()
+        obj_retrieved = self.model.objects.all()[0]
+        self.assertEqual(obj_retrieved.price, obj.price)
     
     def test_query_money(self):
-        book = self.create_instance()
+        obj = self.manager_create_instance()
         with self.assertRaises(FieldError):
-            results = FixedCurrencyModel.objects.filter(price=Money('9.99', 'EUR'))
+            results = FixedCurrencyModel.objects.filter(price=Money('1234.00', 'EUR'))
     
     def test_query_amount(self):
-        book = self.create_instance()
-        results = FixedCurrencyModel.objects.filter(price_amount=Decimal('9.99'))
-        self.assertEqual(book.price, results[0].price)
+        obj = self.manager_create_instance()
+        results = self.model.objects.filter(price_amount=Decimal('1234.00'))
+        self.assertEqual(results.count(), 1)
+        self.assertEqual(obj, results[0])
+        self.assertEqual(obj.price, results[0].price)
 
 
-class TestVariableCurrencyField(TestCase):
-    def setUp(self):
-        self.table_name = FreeCurrencyModel._meta.db_table
-        self.cursor = connection.cursor()
+class TestFixedCurrencyMoneyField(TestMoneyFieldMixin, TestCase):
+    model = FixedCurrencyModel
     
-    def tearDown(self):
-        FreeCurrencyModel.objects.all().delete()
+    def manager_create_instance(self):
+        return self.model.objects.create(price_amount=Decimal('1234.00'))
     
-    def create_instance(self):
-        return FreeCurrencyModel.objects.create(
-            price_amount=Decimal('1234.00'), 
-            price_currency='USD'
-        )
-    
-    def test_db_schema_no_plain_field_name(self):
+    def test_db_schema_no_currency_field(self):
         with self.assertRaises(DatabaseError):
-            self.cursor.execute('SELECT price from {}'.format(self.table_name))
+            self.cursor.execute('SELECT price_currency from {}'.format(self.table_name))
+
+
+class TestFixedCurrencyDefaultAmountMoneyField(TestFixedCurrencyMoneyField):
+    model = FixedCurrencyDefaultAmountModel
     
-    def test_db_schema_amount_field(self):
-        self.cursor.execute('SELECT price_amount from {}'.format(self.table_name))
-        self.assertEqual(self.cursor.fetchall(), [])
+    def manager_create_instance(self):
+        return self.model.objects.create()
+
+
+class TestFreeCurrencyMoneyField(TestMoneyFieldMixin, TestCase):
+    model = FreeCurrencyModel
+    
+    def manager_create_instance(self):
+        return self.model.objects.create(price_amount=Decimal('1234.00'), price_currency='EUR')
     
     def test_db_schema_currency_field(self):
         self.cursor.execute('SELECT price_currency from {}'.format(self.table_name))
         self.assertEqual(self.cursor.fetchall(), [])
     
-    def test_manager_create_with_money(self):
-        with self.assertRaises(TypeError):
-            obj = FreeCurrencyModel.objects.create(price=Money('1234.00', 'USD'))
-    
-    def test_manager_create_with_prices(self):
-        obj = self.create_instance()
-        self.assertEqual(obj.price_amount, Decimal('1234.00'))
-        self.assertEqual(obj.price_currency, 'USD')
-    
-    def test_instance_descriptor_get(self):
-        obj = self.create_instance()
-        self.assertEqual(obj.price, Money('1234.00', 'USD'))
-    
-    def test_instance_descriptor_set(self):
-        obj = self.create_instance()
-        self.assertEqual(obj.price, Money('1234.00', 'USD'))
-        obj.price = Money('25.00', 'USD')
-        self.assertEqual(obj.price, Money('25.00', 'USD'))
-        obj.save()
-        self.assertEqual(obj.price, Money('25.00', 'USD'))
-    
-    def test_instance_create(self):
-        obj = FreeCurrencyModel()
-        obj.price = Money('1', 'USD')
-        obj.save()
-        self.assertEqual(obj.price, Money('1', 'USD'))
-    
-    def test_instance_retrieval(self):
-        obj = self.create_instance()
-        obj_retrieved = FreeCurrencyModel.objects.all()[0]
-        self.assertEqual(obj_retrieved.price, Money('1234.00', 'USD'))
-    
-    def test_query_money(self):
-        obj = self.create_instance()
-        with self.assertRaises(FieldError):
-            results = FreeCurrencyModel.objects.filter(price=Money('1234.00', 'USD'))
-    
-    def test_query_amount(self):
-        obj = self.create_instance()
-        results = FreeCurrencyModel.objects.filter(price_amount=Decimal('1234.00'))
-        self.assertEqual(obj.price, results[0].price)
+    def test_instance_currency(self):
+        obj = self.manager_create_instance()
+        self.assertEqual(obj.price_currency, 'EUR')
     
     def test_query_currency(self):
-        obj = self.create_instance()
-        results = FreeCurrencyModel.objects.filter(price_currency='USD')
+        obj = self.manager_create_instance()
+        results = self.model.objects.filter(price_currency='EUR')
+        self.assertEqual(results.count(), 1)
+        self.assertEqual(obj, results[0])
         self.assertEqual(obj.price, results[0].price)
 
 
-class TestCurrencyChoices(TestCase):
-    def tearDown(self):
-        ChoicesCurrencyModel.objects.all().delete()
+class TestFreeCurrencyDefaultAmountMoneyField(TestFreeCurrencyMoneyField):
+    model = FreeCurrencyDefaultAmountModel
+    
+    def manager_create_instance(self):
+        return self.model.objects.create(price_currency='EUR')
+
+
+class TestChoicesCurrencyMoneyField(TestMoneyFieldMixin, TestCase):
+    model = ChoicesCurrencyModel
+    
+    def manager_create_instance(self):
+        return self.model.objects.create(price_amount=Decimal('1234.00'), price_currency='EUR')
+    
+    def test_instance_currency(self):
+        obj = self.manager_create_instance()
+        self.assertEqual(obj.price_currency, 'EUR')
     
     def test_default_currency(self):
-        obj = ChoicesCurrencyModel.objects.create(
-            price_amount=Decimal('1234.00')
-        )
+        obj = self.model.objects.create(price_amount=Decimal('1234.00'))
+        self.assertEqual(obj.price, Money('1234.00', 'EUR'))
+    
+    def test_non_default_currency(self):
+        obj = self.model.objects.create(price_amount=Decimal('1234.00'), price_currency='USD')
         self.assertEqual(obj.price, Money('1234.00', 'USD'))
     
     def test_valid_currency(self):
-        obj = ChoicesCurrencyModel.objects.create(
-            price_amount=Decimal('1234.00'),
-            price_currency='EUR',
-        )
+        obj = self.manager_create_instance()
         obj.full_clean()
     
     def test_invalid_currency(self):
-        obj = ChoicesCurrencyModel.objects.create(
-            price_amount=Decimal('1234.00'),
-            price_currency='XXX',
-        )
+        obj = self.model.objects.create(price_amount=Decimal('1234.00'), price_currency='XXX')
         with self.assertRaises(ValidationError):
             obj.full_clean()
 
 
-
+class TestChoicesCurrencyDefaultAmountMoneyField(TestChoicesCurrencyMoneyField):
+    model = ChoicesCurrencyDefaultAmounModel
+    
+    def manager_create_instance(self):
+        return self.model.objects.create()
 
 
 

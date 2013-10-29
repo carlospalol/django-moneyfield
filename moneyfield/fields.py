@@ -207,9 +207,11 @@ class CompositeMoneyProxy(AbstractMoneyProxy):
 class MoneyField(models.Field):
     description = "Money"
     
-    def __init__(self, verbose_name=None, name=None, max_digits=None,
-                 decimal_places=None, currency=None, currency_choices=None,
-                 currency_default=NOT_PROVIDED, default=None, **kwargs):
+    def __init__(self, verbose_name=None, name=None,
+                 max_digits=None, decimal_places=None,
+                 currency=None, currency_choices=None,
+                 currency_default=NOT_PROVIDED,
+                 default=None, amount_default=None, **kwargs):
         
         super().__init__(verbose_name, name, default=default, **kwargs)
         self.fixed_currency = currency
@@ -227,6 +229,7 @@ class MoneyField(models.Field):
         self.amount_field = models.DecimalField(
             decimal_places=decimal_places,
             max_digits=max_digits,
+            default=amount_default,
             **kwargs
         )
         if not self.fixed_currency:
