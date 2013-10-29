@@ -3,23 +3,13 @@ from decimal import Decimal
 from django.db import connection
 from django.db.utils import DatabaseError
 from django.core.exceptions import FieldError, ValidationError
-from django.conf import settings
 from django.test import TestCase
 
 from money import Money
 
 from moneyfield import MoneyField
-from moneyfield import conf
 
 from testapp.models import *
-
-
-class TestAppConfiguration(TestCase):
-    def test_currency_choices(self):
-        self.assertEqual(
-            settings.MONEY_CURRENCY_CHOICES, 
-            conf.CURRENCY_CHOICES
-        )
 
 
 class TestFieldValidation(TestCase):

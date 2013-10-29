@@ -5,7 +5,6 @@ from django.test import TestCase
 
 from money import Money
 
-from moneyfield import conf
 from moneyfield.exceptions import *
 from moneyfield.fields import MoneyFormField
 from moneyfield import MoneyField, MoneyModelForm
