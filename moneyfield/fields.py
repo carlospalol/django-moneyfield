@@ -5,6 +5,7 @@ from decimal import Decimal
 from django import forms
 from django.core.exceptions import FieldError, ValidationError
 from django.forms.models import ModelFormMetaclass
+from django.forms.util import flatatt
 from django.utils.datastructures import SortedDict
 from django.utils.encoding import force_text
 from django.utils.html import format_html
@@ -109,14 +110,15 @@ class MoneyFormField(forms.MultiValueField):
 
 class FixedCurrencyWidget(forms.Widget):
     def __init__(self, attrs=None, currency=None):
-        super().__init__(attrs=attrs)
         assert currency
+        super().__init__(attrs=attrs)
         self.currency = currency
     
     def render(self, name, value, attrs=None):
         if value and not value is self.currency:
             raise Exception('FixedCurrencyWidget with currency "{}" cannot be rendered with currency "{}".'.format(self.currency, value))
-        return '<span style="vertical-align: middle;">{}</span>'.format(self.currency)
+        final_attrs = self.build_attrs(attrs, style='vertical-align: middle;')
+        return format_html('<span{0}>{1}</span>', flatatt(final_attrs), self.currency)
     
     def value_from_datadict(self, data, files, name):
         return self.currency
