@@ -211,7 +211,7 @@ class MoneyField(models.Field):
                  max_digits=None, decimal_places=None,
                  currency=None, currency_choices=None,
                  currency_default=NOT_PROVIDED,
-                 default=None, amount_default=None, **kwargs):
+                 default=NOT_PROVIDED, amount_default=NOT_PROVIDED, **kwargs):
         
         super().__init__(verbose_name, name, default=default, **kwargs)
         self.fixed_currency = currency
@@ -223,8 +223,24 @@ class MoneyField(models.Field):
             raise FieldError('"{}": MoneyFields require a positive integer argument "max_digits".'.format(self.name))
         
         # Currency must be either fixed or variable, not both.
-        if currency and (currency_choices or not currency_default is NOT_PROVIDED):
+        if currency and (currency_choices or currency_default != NOT_PROVIDED):
             raise FieldError('MoneyField "{}" has fixed currency "{}". Do not use "currency_choices" or "currency_default" at the same time.'.format(self.name, currency))
+        
+        # Money default
+        if default != NOT_PROVIDED:
+            if type(default) is Money:
+                # Must be compatible with fixed currency
+                if currency and not (currency == default.currency):
+                    raise FieldError('MoneyField "{}" has fixed currency "{}". The default value "{}" is not compatible.'.format(self.name, currency, default))
+                # Do not set other defaults at the same time
+                if amount_default != NOT_PROVIDED:
+                    raise FieldError('MoneyField "{}" has a default value "{}". Do not use "amount_default at the same time".'.format(self.name, default))
+                if currency_default != NOT_PROVIDED:
+                    raise FieldError('MoneyField "{}" has a default value "{}". Do not use "currency_default at the same time".'.format(self.name, default))
+                amount_default = default.amount
+                currency_default = default.currency
+            else:
+                raise TypeError('MoneyField "{}" default must be of type Money, it is "{}".'.format(self.name, type(currency)))
         
         self.amount_field = models.DecimalField(
             decimal_places=decimal_places,

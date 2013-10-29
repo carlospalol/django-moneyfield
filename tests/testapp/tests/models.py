@@ -23,8 +23,8 @@ class TestFieldValidation(TestCase):
             testfield = MoneyField(name='testfield', decimal_places=2)
         self.assertIn('max_digits', cm.exception.args[0])
     
-    def test_invalid_option_currency_default(self):
-        with self.assertRaises(FieldError) as cm:
+    def test_both_fixed_currency_and_currency_default(self):
+        with self.assertRaises(FieldError):
             testfield = MoneyField(
                 name='testfield',
                 decimal_places=2,
@@ -32,10 +32,9 @@ class TestFieldValidation(TestCase):
                 currency='USD',
                 currency_default='USD',
             )
-        self.assertIn('has fixed currency', cm.exception.args[0])
     
-    def test_invalid_option_currency_choices(self):
-        with self.assertRaises(FieldError) as cm:
+    def test_both_fixed_currency_and_currency_choices(self):
+        with self.assertRaises(FieldError):
             testfield = MoneyField(
                 name='testfield',
                 decimal_places=2,
@@ -43,7 +42,54 @@ class TestFieldValidation(TestCase):
                 currency='USD',
                 currency_choices=(('USD', 'USD'),),
             )
-        self.assertIn('has fixed currency', cm.exception.args[0])
+    
+    def test_both_fixed_currency_and_default_valid(self):
+        testfield = MoneyField(
+            name='testfield',
+            decimal_places=2,
+            max_digits=8,
+            currency='USD',
+            default=Money('1234.00', 'USD'),
+        )
+    
+    def test_both_fixed_currency_and_default_invalid(self):
+        with self.assertRaises(FieldError):
+            testfield = MoneyField(
+                name='testfield',
+                decimal_places=2,
+                max_digits=8,
+                currency='USD',
+                default=Money('1234.00', 'EUR'),
+            )
+    
+    def test_both_default_and_amount_default(self):
+        with self.assertRaises(FieldError):
+            testfield = MoneyField(
+                name='testfield',
+                decimal_places=2,
+                max_digits=8,
+                amount_default=Decimal('1234.00'),
+                default=Money('1234.00', 'EUR'),
+            )
+    
+    def test_both_default_and_currency_default(self):
+        with self.assertRaises(FieldError):
+            testfield = MoneyField(
+                name='testfield',
+                decimal_places=2,
+                max_digits=8,
+                currency_default='EUR',
+                default=Money('1234.00', 'EUR'),
+            )
+    
+    def test_invalid_default(self):
+        with self.assertRaises(TypeError):
+            testfield = MoneyField(
+                name='testfield',
+                decimal_places=2,
+                max_digits=8,
+                default="1234.00 EUR",
+            )
 
 
 class TestMoneyFieldMixin(object):
