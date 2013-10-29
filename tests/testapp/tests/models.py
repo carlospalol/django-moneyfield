@@ -94,6 +94,18 @@ class TestMoneyFieldMixin(object):
         obj.save()
         self.assertEqual(obj.price, Money('0.99', 'EUR'))
     
+    def test_instance_descriptor_incomplete_only_amount(self):
+        obj = self.model()
+        obj.price_amount = Decimal('1234.00')
+        obj.price_currency = None
+        self.assertIsNone(obj.price)
+    
+    def test_instance_descriptor_incomplete_only_currency(self):
+        obj = self.model()
+        obj.price_amount = None
+        obj.price_currency = 'EUR'
+        self.assertIsNone(obj.price)
+    
     def test_instance_retrieval(self):
         obj = self.manager_create_instance()
         obj_retrieved = self.model.objects.all()[0]
@@ -121,6 +133,19 @@ class TestFixedCurrencyMoneyField(TestMoneyFieldMixin, TestCase):
     def test_db_schema_no_currency_field(self):
         with self.assertRaises(DatabaseError):
             self.cursor.execute('SELECT price_currency from {}'.format(self.table_name))
+    
+    def test_instance_descriptor_incomplete_only_amount(self):
+        # Fixed currency field always has currency
+        pass
+    
+    def test_invalid_manager_create_argument(self):
+        with self.assertRaises(TypeError):
+            obj = self.model.objects.create(price_amount=Decimal('1234.00'), price_currency='USD')
+    
+    def test_invalid_currency_assignation(self):
+        obj = self.model()
+        with self.assertRaises(TypeError):
+            obj.price = Money('1234.00', 'USD')
 
 
 class TestFixedCurrencyDefaultAmountMoneyField(TestFixedCurrencyMoneyField):
