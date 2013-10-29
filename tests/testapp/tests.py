@@ -263,15 +263,6 @@ class TestFreeCurrencyMoneyModelForm(TestCase):
         self.assertTrue(form.is_valid())
         obj = form.save()
         self.assertEqual(obj.value, Money('123.99', 'GBP'))
-    
-    def test_currency_code_validation(self):
-        form = self.Form({
-            'value_0': Decimal('9.99'),
-            'value_1': 'US',
-        })
-        print(form.is_valid())
-        print(form.errors.__dict__)
-        print(type(form.errors))
 
 
 class TestCurrencyChoicesMoneyModelForm(TestCase):
