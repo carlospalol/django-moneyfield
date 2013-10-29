@@ -1,7 +1,5 @@
 from decimal import Decimal
-
 from django.db import models
-
 from moneyfield import MoneyField
 
 
