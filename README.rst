@@ -196,7 +196,22 @@ Using ``MoneyModelForm`` is optional. You may also include it in the base classe
     **Using free currency**
 
 
+Contributions
+=============
 
+Contributions are welcome. You can use the `regular github mechanisms <https://help.github.com/>`_.
+
+To run the tests, sit on the package root (by setup.py) and run:
+
+::
+
+    python tests/runtests.py
+
+
+License
+=======
+
+django-moneyfield is released under the **MIT license**, which can be found in the file ``LICENSE``.
 
 
 
