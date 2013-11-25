@@ -150,7 +150,7 @@ MoneyField.currency_default
     Default currency value.
 
 MoneyField.amount_default
-Default amount value.
+    Default amount value.
 
 MoneyField.currency_choices
     Regular Django choices iterable, e.g.::
