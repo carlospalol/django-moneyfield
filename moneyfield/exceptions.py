@@ -1,0 +1,6 @@
+
+
+class MoneyModelFormError(Exception):
+    pass
+
+
