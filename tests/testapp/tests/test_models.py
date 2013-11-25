@@ -221,6 +221,15 @@ class TestFreeCurrencyMoneyField(TestMoneyFieldMixin, TestCase):
         self.assertEqual(results.count(), 1)
         self.assertEqual(obj, results[0])
         self.assertEqual(obj.price, results[0].price)
+    
+    def test_invalid_currency_code(self):
+        obj = self.manager_create_instance()
+        obj.price_currency = "AA"
+        with self.assertRaises(ValidationError):
+            obj.full_clean()
+        obj.price_currency = "123"
+        with self.assertRaises(ValidationError):
+            obj.full_clean()
 
 
 class TestFreeCurrencyDefaultAmountMoneyField(TestFreeCurrencyMoneyField):

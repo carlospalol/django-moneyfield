@@ -255,6 +255,7 @@ class MoneyField(models.Field):
                 max_length=3,
                 default=currency_default,
                 choices=currency_choices,
+                validators=[currency_code_validator],
                 **kwargs
             )
     
