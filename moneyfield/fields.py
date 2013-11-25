@@ -19,7 +19,6 @@ from .exceptions import *
 
 __all__ = ['MoneyField', 'MoneyModelForm']
 
-logger = logging.getLogger(__name__)
 
 REGEX_CURRENCY_CODE = re.compile("^[A-Z]{3}$")
 def currency_code_validator(value):
@@ -35,7 +34,8 @@ class MoneyModelFormMetaclass(ModelFormMetaclass):
         
         modelopts = new_class._meta.model._meta
         if not hasattr(modelopts, 'moneyfields'):
-            raise MoneyModelFormError("The Model used with this ModelForm does not contain MoneyFields")
+            raise MoneyModelFormError("The Model used with this ModelForm "
+                                      "does not contain MoneyFields")
         
         # Rebuild the dict of form fields by replacing fields derived from
         # money subfields with a specialised money multivalue form field,
@@ -75,7 +75,9 @@ class MoneyModelForm(forms.ModelForm, metaclass=MoneyModelFormMetaclass):
                 if not moneyfield.fixed_currency:
                     if not ((moneyfield.amount_attr in opts.exclude) == 
                             (moneyfield.currency_attr in opts.exclude)):
-                        raise MoneyModelFormError('Cannot exclude only one money field from the model form.')
+                        msg = ('Cannot exclude only one money field '
+                               'from the model form.')
+                        raise MoneyModelFormError(msg)
     
     def clean(self):
         cleaned_data = super().clean()
@@ -135,9 +137,13 @@ class FixedCurrencyWidget(forms.Widget):
     
     def render(self, name, value, attrs=None):
         if value and not value is self.currency:
-            raise InvalidMoneyFieldCurrency('FixedCurrencyWidget "{}" with fixed currency "{}" cannot be rendered with currency "{}".'.format(name, self.currency, value))
+            msg = ('FixedCurrencyWidget "{}" with fixed currency "{}" '
+                   'cannot be rendered with currency "{}".')
+            raise TypeError(msg.format(name, self.currency, value))
         final_attrs = self.build_attrs(attrs, style='vertical-align: middle;')
-        return format_html('<span{0}>{1}</span>', flatatt(final_attrs), self.currency)
+        return format_html('<span{0}>{1}</span>',
+                           flatatt(final_attrs),
+                           self.currency)
 
 
 class FixedCurrencyFormField(forms.Field):
@@ -149,7 +155,8 @@ class FixedCurrencyFormField(forms.Field):
     
     def validate(self, value):
         if not value is self.currency:
-            raise ValidationError('Invalid currency "{}" for "{}"-only FixedCurrencyFormField'.format(value, self.currency))
+            msg = 'Invalid currency "{}" for "{}"-only FixedCurrencyFormField'
+            raise ValidationError(msg.format(value, self.currency))
 
 
 class AbstractMoneyProxy(object):
@@ -179,25 +186,31 @@ class AbstractMoneyProxy(object):
         elif isinstance(value, None):
             self._set_values(obj, None, None)
         else:
-            raise TypeError('Cannot assign "{}" to MoneyField "{}".'.format(type(value), self.field.name))
+            msg = 'Cannot assign "{}" to MoneyField "{}".'
+            raise TypeError(msg.format(type(value), self.field.name))
 
 
 class SimpleMoneyProxy(AbstractMoneyProxy):
     """Descriptor for MoneyFields with fixed currency"""
     def _get_values(self, obj):
-        return (obj.__dict__[self.field.amount_attr], self.field.fixed_currency)
+        return (obj.__dict__[self.field.amount_attr],
+                self.field.fixed_currency)
     
     def _set_values(self, obj, amount, currency=None):
         if not currency is None:
             if currency != self.field.fixed_currency:
-                raise TypeError('Field "{}" is {}-only.'.format(self.field.name, self.field.fixed_currency))
+                raise TypeError('Field "{}" is {}-only.'.format(
+                    self.field.name, 
+                    self.field.fixed_currency
+                ))
         obj.__dict__[self.field.amount_attr] = amount
 
 
 class CompositeMoneyProxy(AbstractMoneyProxy):
-    """Descriptor for MoneyFields with variable currency via additional column"""
+    """Descriptor for MoneyFields with variable currency"""
     def _get_values(self, obj):
-        return (obj.__dict__[self.field.amount_attr], obj.__dict__[self.field.currency_attr])
+        return (obj.__dict__[self.field.amount_attr],
+                obj.__dict__[self.field.currency_attr])
     
     def _set_values(self, obj, amount, currency):
         obj.__dict__[self.field.amount_attr] = amount
@@ -218,29 +231,47 @@ class MoneyField(models.Field):
         
         # DecimalField pre-validation
         if decimal_places is None or decimal_places < 0:
-            raise FieldError('"{}": MoneyFields require a non-negative integer argument "decimal_places".'.format(self.name))
+            msg = ('"{}": MoneyFields require a non-negative integer '
+                   'argument "decimal_places".')
+            raise FieldError(msg.format(self.name))
         if max_digits is None or max_digits <= 0:
-            raise FieldError('"{}": MoneyFields require a positive integer argument "max_digits".'.format(self.name))
+            msg = ('"{}": MoneyFields require a positive integer '
+                   'argument "max_digits".')
+            raise FieldError(msg.format(self.name))
         
         # Currency must be either fixed or variable, not both.
         if currency and (currency_choices or currency_default != NOT_PROVIDED):
-            raise FieldError('MoneyField "{}" has fixed currency "{}". Do not use "currency_choices" or "currency_default" at the same time.'.format(self.name, currency))
+            msg = ('MoneyField "{}" has fixed currency "{}". '
+                   'Do not use "currency_choices" or "currency_default" '
+                   'at the same time.')
+            raise FieldError(msg.format(self.name, currency))
         
         # Money default
         if default != NOT_PROVIDED:
             if type(default) is Money:
                 # Must be compatible with fixed currency
                 if currency and not (currency == default.currency):
-                    raise FieldError('MoneyField "{}" has fixed currency "{}". The default value "{}" is not compatible.'.format(self.name, currency, default))
+                    msg = ('MoneyField "{}" has fixed currency "{}". '
+                           'The default value "{}" is not compatible.')
+                    raise FieldError(msg.format(self.name, currency, default))
+                
                 # Do not set other defaults at the same time
                 if amount_default != NOT_PROVIDED:
-                    raise FieldError('MoneyField "{}" has a default value "{}". Do not use "amount_default at the same time".'.format(self.name, default))
+                    msg = ('MoneyField "{}" has a default value "{}". Do not '
+                           'use "amount_default" at the same time.')
+                    raise FieldError(msg.format(self.name, default))
+                
                 if currency_default != NOT_PROVIDED:
-                    raise FieldError('MoneyField "{}" has a default value "{}". Do not use "currency_default at the same time".'.format(self.name, default))
+                    msg = ('MoneyField "{}" has a default value "{}". '
+                           'Do not use "currency_default" at the same time.')
+                    raise FieldError(msg.format(self.name, default))
+                
                 amount_default = default.amount
                 currency_default = default.currency
             else:
-                raise TypeError('MoneyField "{}" default must be of type Money, it is "{}".'.format(self.name, type(currency)))
+                msg = ('MoneyField "{}" default must be '
+                       'of type Money, it is "{}".')
+                raise TypeError(msg.format(self.name, type(currency)))
         
         self.amount_field = models.DecimalField(
             decimal_places=decimal_places,
@@ -286,7 +317,9 @@ class MoneyField(models.Field):
                 validators=[currency_code_validator]
             )
         else:
-            formfield_currency = FixedCurrencyFormField(currency=self.fixed_currency)
+            formfield_currency = FixedCurrencyFormField(
+                currency=self.fixed_currency
+            )
         
         widget_amount = formfield_amount.widget
         widget_currency = formfield_currency.widget

@@ -105,7 +105,7 @@ class TestFixedCurrencyModelForm(MoneyModelFormMixin, TestCase):
         form = self.Form(initial={
             'price': Money('1234.00', 'USD'),
         })
-        with self.assertRaises(InvalidMoneyFieldCurrency):
+        with self.assertRaises(TypeError):
             html = form.as_p()
     
     def test_invalid_data_decompressed(self):

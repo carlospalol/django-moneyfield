@@ -14,7 +14,8 @@ class FixedCurrencyModel(models.Model):
 
 class FixedCurrencyDefaultAmountModel(models.Model):
     name = models.CharField(blank=True, max_length=100)
-    price = MoneyField(decimal_places=2, max_digits=12, currency='EUR', amount_default=Decimal('1234.00'))
+    price = MoneyField(decimal_places=2, max_digits=12, currency='EUR', 
+                       amount_default=Decimal('1234.00'))
 
 
 class FreeCurrencyModel(models.Model):
@@ -24,7 +25,8 @@ class FreeCurrencyModel(models.Model):
 
 class FreeCurrencyDefaultAmountModel(models.Model):
     name = models.CharField(blank=True, max_length=100)
-    price = MoneyField(decimal_places=2, max_digits=12, amount_default=Decimal('1234.00'))
+    price = MoneyField(decimal_places=2, max_digits=12, 
+                       amount_default=Decimal('1234.00'))
 
 
 class ChoicesCurrencyModel(models.Model):
@@ -60,3 +62,6 @@ class SomeMoney(models.Model):
     field1 = models.CharField(blank=True, max_length=100)
     field2 = MoneyField(decimal_places=2, max_digits=12)
     field3 = models.CharField(blank=True, max_length=100)
+
+
+
