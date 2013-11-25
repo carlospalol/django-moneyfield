@@ -21,7 +21,7 @@ __all__ = ['MoneyField', 'MoneyModelForm']
 
 logger = logging.getLogger(__name__)
 
-REGEX_CURRENCY_CODE = re.compile("[A-Z]{3}")
+REGEX_CURRENCY_CODE = re.compile("^[A-Z]{3}$")
 def currency_code_validator(value):
     if not REGEX_CURRENCY_CODE.match(force_text(value)):
         raise ValidationError('Invalid currency code.')
