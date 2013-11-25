@@ -11,7 +11,7 @@ setup(
     version="0.2",
     author="Carlos Palol",
     author_email="carlos.palol@awarepixel.com",
-    url="http://www.awarepixel.com",
+    url="https://github.com/carlospalol/django-moneyfield",
     packages=[
         'moneyfield'
     ],
