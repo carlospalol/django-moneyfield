@@ -187,7 +187,7 @@ Using ``MoneyModelForm`` is optional. You may also include it in the base classe
     
     **Using currency choices**
 
-.. figure:: https://raw.github.com/carlospalol/django-moneyfield/master/docs/static/img/form-free.png
+.. figure:: https://raw.github.com/carlospalol/django-moneyfield/master/docs/static/img/form-fixed.png
         
     **Using fixed currency**
 
