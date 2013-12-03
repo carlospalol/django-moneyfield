@@ -8,7 +8,7 @@ setup(
     name="django-moneyfield",
     description="Django Money Model Field",
     long_description=DESCRIPTION,
-    version="0.2",
+    version="0.2.1",
     author="Carlos Palol",
     author_email="carlos.palol@awarepixel.com",
     url="https://github.com/carlospalol/django-moneyfield",
