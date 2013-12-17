@@ -141,7 +141,7 @@ MoneyField.decimal_places
     Same as DecimalField: The number of decimal places to store with the number.
 
 MoneyField.currency
-    Fixed currency for this field. This will omit the creation of a ``<name>_currency`` column in the database.
+    Fixed currency for this field. This will omit the creation of a ``<fieldname>_currency`` column in the database.
 
 MoneyField.default
     Default Money value for this field (both amount and currency).
@@ -194,6 +194,22 @@ Using ``MoneyModelForm`` is optional. You may also include it in the base classe
 .. figure:: https://raw.github.com/carlospalol/django-moneyfield/master/docs/static/img/form-free.png
     
     **Using free currency**
+
+
+Design decisions
+================
+
+There is already an excellent, mature, and stable package to handle money in Django: `django-money <https://pypi.python.org/pypi/django-money/>`_.
+
+The main difference in django-moneyfield is that the amount and currency are **always** created in the database as ``<fieldname>_amount`` and ``<fieldname>_currency``, exposed in the same way in the model (alongside ``<fieldname>``, which returns ``Money``), and used in the same way while making queries.
+
+This approach leads to a much simpler "model side" implementation, including efortless South compatibility. On the other hand, it makes the "modelform side" more complicated, as the user´s model field ``<fieldname>`` is not really a model ``Field``.
+
+For users of the package, this means making queries over separate fields ``<fieldname>_amount`` and ``<fieldname>_currency``, which is more explicit and prevents further dependency on the package.
+
+django-moneyfield also introduces the idea of a "fixed currency" mode, in which a currency column is not needed.
+
+It is also designed with a `Money class implementation <https://pypi.python.org/pypi/money/>`_ of the same author in mind (probably compatible with other implementations, but untested).
 
 
 Contributions
